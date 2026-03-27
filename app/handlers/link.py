@@ -3,6 +3,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message
 
+from app.config import settings
 from app.services.robux_service import robux_service
 
 router = Router()
@@ -14,6 +15,14 @@ class LinkState(StatesGroup):
 
 @router.message(F.text == "🔗 Привязать аккаунт")
 async def ask_link_code(message: Message, state: FSMContext) -> None:
+    if settings.test_site_user_id is not None:
+        await state.clear()
+        await message.answer(
+            f"✅ Тестовая привязка активна.\n\nВсе запросы из бота идут от аккаунта сайта ID: <code>{settings.test_site_user_id}</code>",
+            parse_mode="HTML",
+        )
+        return
+
     await state.set_state(LinkState.waiting_for_code)
     await message.answer(
         "Пришли код привязки, который сайт показал в личном кабинете.\nПример: <code>RBX-483912</code>",
