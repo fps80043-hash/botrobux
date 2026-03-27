@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 from typing import Any
@@ -23,6 +24,20 @@ class SiteAPI:
             })
         return data
 
+    async def _get_first_success(self, paths: list[str], params: dict[str, Any] | None = None) -> Any:
+        last_exc: Exception | None = None
+        for path in paths:
+            if not path:
+                continue
+            try:
+                return await api_client.get(path, params=params)
+            except Exception as exc:
+                last_exc = exc
+                continue
+        if last_exc:
+            raise last_exc
+        return {}
+
     async def profile(self, telegram_id: int) -> dict[str, Any]:
         params = self.identity_params(telegram_id)
         fallback: dict[str, Any] = {}
@@ -33,7 +48,11 @@ class SiteAPI:
                 'is_admin': settings.test_site_user_id == 1 or telegram_id in settings.admin_ids,
             }
         try:
-            data = await api_client.get(settings.endpoint_profile, params=params)
+            data = await self._get_first_success([
+                settings.endpoint_profile,
+                '/api/me',
+                '/me',
+            ], params=params)
         except Exception:
             data = {}
         user = data.get('user') if isinstance(data, dict) and isinstance(data.get('user'), dict) else data
@@ -50,28 +69,71 @@ class SiteAPI:
     async def balance(self, telegram_id: int) -> dict[str, Any]:
         params = self.identity_params(telegram_id)
         try:
-            data = await api_client.get(settings.endpoint_balance, params=params)
+            data = await self._get_first_success([
+                settings.endpoint_balance,
+                '/api/balance',
+                '/api/user/balance',
+                '/api/profile/balance',
+                '/api/auth/balance',
+            ], params=params)
         except Exception:
+            try:
+                profile = await self.profile(telegram_id)
+                if isinstance(profile, dict) and ('balance' in profile or 'bal' in profile):
+                    return {'balance': profile.get('balance', profile.get('bal', 0)), 'currency': 'RUB'}
+            except Exception:
+                pass
             return {'balance': 0, 'currency': 'RUB'}
         if isinstance(data, dict):
             if 'balance' in data:
-                return data
+                return {'balance': data.get('balance', 0), 'currency': data.get('currency', 'RUB')}
             for key in ('user', 'data'):
                 nested = data.get(key)
                 if isinstance(nested, dict) and 'balance' in nested:
-                    return nested
+                    return {'balance': nested.get('balance', 0), 'currency': nested.get('currency', 'RUB')}
             for key in ('amount', 'value'):
                 if key in data:
                     return {'balance': data[key], 'currency': data.get('currency', 'RUB')}
         return {'balance': data, 'currency': 'RUB'}
 
     async def stock(self) -> dict[str, Any]:
-        data = await api_client.get(settings.endpoint_stock)
+        try:
+            data = await self._get_first_success([
+                settings.endpoint_stock,
+                '/api/shop/stock',
+                '/api/stock',
+                '/shop/stock',
+            ])
+        except Exception:
+            try:
+                config = await self._get_first_success([
+                    settings.endpoint_shop_config,
+                    '/api/shop/config',
+                    '/api/config/shop',
+                ])
+            except Exception:
+                return {'available_robux': 0, 'available_packages': 0, 'status': 'unknown', 'raw': {}}
+            if isinstance(config, dict):
+                amount = pick(config.get('available_robux'), config.get('robux_stock'), config.get('stock'), default=0)
+                packages = 0
+                for key in ('packages', 'robux_packages', 'catalog'):
+                    if isinstance(config.get(key), list):
+                        packages = len(config[key])
+                        break
+                return {'available_robux': amount, 'available_packages': packages, 'status': 'ok' if amount else 'out_of_stock', 'raw': config}
+            return {'available_robux': 0, 'available_packages': 0, 'status': 'unknown', 'raw': config}
         if isinstance(data, dict):
+            amount = pick(data.get('available_robux'), data.get('robux'), data.get('stock'), data.get('amount'), default=0)
+            packages = pick(data.get('available_packages'), data.get('packages_count'), default=0)
+            if not packages:
+                for key in ('packages', 'items', 'data'):
+                    if isinstance(data.get(key), list):
+                        packages = len(data[key])
+                        break
             return {
-                'available_robux': pick(data.get('available_robux'), data.get('robux'), data.get('stock'), default=0),
-                'available_packages': pick(data.get('available_packages'), data.get('packages_count'), default=0),
-                'status': data.get('status', 'ok'),
+                'available_robux': amount,
+                'available_packages': packages,
+                'status': data.get('status', 'ok' if amount else 'out_of_stock'),
                 'raw': data,
             }
         return {'available_robux': 0, 'available_packages': 0, 'status': 'unknown', 'raw': data}
@@ -79,7 +141,14 @@ class SiteAPI:
     async def orders(self, telegram_id: int, limit: int = 10) -> list[dict[str, Any]]:
         params = self.identity_params(telegram_id)
         params['limit'] = limit
-        data = await api_client.get(settings.endpoint_orders, params=params)
+        try:
+            data = await self._get_first_success([
+                settings.endpoint_orders,
+                '/api/tx',
+                '/api/orders/my',
+            ], params=params)
+        except Exception:
+            return []
         if isinstance(data, list):
             return data
         if isinstance(data, dict):
@@ -89,18 +158,26 @@ class SiteAPI:
         return []
 
     async def packages(self) -> list[dict[str, Any]]:
-        try:
-            data = await api_client.get(settings.endpoint_packages)
-            if isinstance(data, list):
-                return data
-            if isinstance(data, dict):
-                for key in ('items', 'packages', 'data'):
-                    if isinstance(data.get(key), list):
-                        return data[key]
-        except Exception:
-            pass
+        for path in [settings.endpoint_packages, '/api/shop/packages', '/api/packages']:
+            try:
+                data = await api_client.get(path)
+                if isinstance(data, list):
+                    return data
+                if isinstance(data, dict):
+                    for key in ('items', 'packages', 'data'):
+                        if isinstance(data.get(key), list):
+                            return data[key]
+            except Exception:
+                pass
 
-        config = await api_client.get(settings.endpoint_shop_config)
+        try:
+            config = await self._get_first_success([
+                settings.endpoint_shop_config,
+                '/api/shop/config',
+                '/api/config/shop',
+            ])
+        except Exception:
+            return []
         if not isinstance(config, dict):
             return []
         for key in ('packages', 'robux_packages', 'catalog'):

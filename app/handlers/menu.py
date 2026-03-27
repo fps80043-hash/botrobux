@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 from app.utils.tg import safe_edit_or_send
@@ -13,13 +14,23 @@ router = Router()
 
 
 async def _home_text(callback: CallbackQuery) -> str:
-    balance_data = await site_api.balance(callback.from_user.id)
-    stock = await site_api.stock()
+    try:
+        balance_data = await site_api.balance(callback.from_user.id)
+    except Exception:
+        balance_data = {'balance': 0}
+    try:
+        stock = await site_api.stock()
+    except Exception:
+        stock = {'available_robux': 0}
     balance_value = balance_data.get('balance', 0)
     return (
-        '<b>🏠 Главное меню RBX-ST</b>\n\n'
-        f'💳 Баланс: <b>{money(balance_value)}</b>\n'
-        f'📦 Наличие: <b>{stock.get("available_robux", 0)}</b> Robux\n'
+        '<b>🏠 Главное меню RBX-ST</b>
+
+'
+        f'💳 Баланс: <b>{money(balance_value)}</b>
+'
+        f'📦 Наличие: <b>{stock.get("available_robux", 0)}</b> Robux
+'
         '⚡ Всё управление теперь через inline-кнопки.'
     )
 
@@ -37,11 +48,17 @@ async def menu_profile(callback: CallbackQuery) -> None:
     try:
         profile = await site_api.profile(callback.from_user.id)
         text = (
-            '<b>👤 Профиль</b>\n\n'
-            f'🆔 ID: <code>{profile.get("id", "-")}</code>\n'
-            f'🧷 Логин: <b>{profile.get("username") or profile.get("email") or "Не привязан"}</b>\n'
-            f'💳 Баланс: <b>{money(profile.get("balance", 0))}</b>\n'
-            f'⭐ Premium: <b>{yes_no(profile.get("premium") or profile.get("premium_until"))}</b>\n'
+            '<b>👤 Профиль</b>
+
+'
+            f'🆔 ID: <code>{profile.get("id", "-")}</code>
+'
+            f'🧷 Логин: <b>{profile.get("username") or profile.get("email") or "Не привязан"}</b>
+'
+            f'💳 Баланс: <b>{money(profile.get("balance", 0))}</b>
+'
+            f'⭐ Premium: <b>{yes_no(profile.get("premium") or profile.get("premium_until"))}</b>
+'
             f'🛡 Админ: <b>{yes_no(profile.get("is_admin"))}</b>'
         )
     except Exception:
@@ -55,8 +72,11 @@ async def menu_balance(callback: CallbackQuery) -> None:
     try:
         balance_data = await site_api.balance(callback.from_user.id)
         text = (
-            '<b>💳 Баланс</b>\n\n'
-            f'Текущий баланс: <b>{money(balance_data.get("balance", 0))}</b>\n'
+            '<b>💳 Баланс</b>
+
+'
+            f'Текущий баланс: <b>{money(balance_data.get("balance", 0))}</b>
+'
             f'Валюта: <b>{balance_data.get("currency", "RUB")}</b>'
         )
     except Exception:
@@ -70,9 +90,13 @@ async def menu_stock(callback: CallbackQuery) -> None:
     try:
         stock = await site_api.stock()
         text = (
-            '<b>📦 Наличие Robux</b>\n\n'
-            f'Доступно Robux: <b>{stock.get("available_robux", 0)}</b>\n'
-            f'Доступно пакетов: <b>{stock.get("available_packages", 0)}</b>\n'
+            '<b>📦 Наличие Robux</b>
+
+'
+            f'Доступно Robux: <b>{stock.get("available_robux", 0)}</b>
+'
+            f'Доступно пакетов: <b>{stock.get("available_packages", 0)}</b>
+'
             f'Статус: <b>{stock.get("status", "unknown")}</b>'
         )
     except Exception:
@@ -86,7 +110,9 @@ async def menu_orders(callback: CallbackQuery) -> None:
     try:
         orders = await site_api.orders(callback.from_user.id, limit=10)
         if not orders:
-            text = '<b>📜 Мои заказы</b>\n\nЗаказов пока нет.'
+            text = '<b>📜 Мои заказы</b>
+
+Заказов пока нет.'
         else:
             lines = ['<b>📜 Последние заказы</b>', '']
             for item in orders[:10]:
@@ -95,7 +121,8 @@ async def menu_orders(callback: CallbackQuery) -> None:
                 price = item.get('price') or item.get('amount') or 0
                 item_id = item.get('id') or item.get('order_id') or '—'
                 lines.append(f'• <b>#{item_id}</b> · {title} · {money(price)} · <i>{status}</i>')
-            text = '\n'.join(lines)
+            text = '
+'.join(lines)
     except Exception:
         text = '⚠️ Не удалось загрузить историю заказов.'
     await safe_edit_or_send(callback, text, reply_markup=back_home())
@@ -110,7 +137,9 @@ async def menu_shop(callback: CallbackQuery) -> None:
             text = '⚠️ Каталог пакетов пока пуст или backend ещё не отдаёт пакеты.'
             markup = back_home()
         else:
-            text = '<b>🛒 Покупка Robux</b>\n\nВыбери пакет ниже 👇'
+            text = '<b>🛒 Покупка Robux</b>
+
+Выбери пакет ниже 👇'
             markup = packages_keyboard(packages)
     except Exception:
         text = '⚠️ Не удалось загрузить каталог пакетов.'
@@ -123,16 +152,22 @@ async def menu_shop(callback: CallbackQuery) -> None:
 async def menu_link(callback: CallbackQuery, state: FSMContext) -> None:
     if site_api.identity_params(callback.from_user.id).get('site_user_id') is not None:
         text = (
-            '<b>🔗 Привязка аккаунта</b>\n\n'
-            '✅ Тестовая привязка активна.\n'
+            '<b>🔗 Привязка аккаунта</b>
+
+'
+            '✅ Тестовая привязка активна.
+'
             f'Все запросы сейчас идут от ID сайта: <code>{site_api.identity_params(callback.from_user.id).get("site_user_id")}</code>'
         )
     else:
         from app.handlers.link import LinkState
         await state.set_state(LinkState.waiting_code)
         text = (
-            '<b>🔗 Привязка аккаунта</b>\n\n'
-            'Отправь код привязки следующим сообщением в чат.\n'
+            '<b>🔗 Привязка аккаунта</b>
+
+'
+            'Отправь код привязки следующим сообщением в чат.
+'
             'Пример: <code>RBX-483912</code>'
         )
     await safe_edit_or_send(callback, text, reply_markup=back_home())
@@ -142,8 +177,12 @@ async def menu_link(callback: CallbackQuery, state: FSMContext) -> None:
 @router.callback_query(F.data == 'menu:support')
 async def menu_support(callback: CallbackQuery) -> None:
     text = (
-        '<b>❓ Поддержка</b>\n\n'
-        'Если оплата зависла, Robux не пришли или нужно вручную проверить заказ — напиши администратору магазина.\n\n'
+        '<b>❓ Поддержка</b>
+
+'
+        'Если оплата зависла, Robux не пришли или нужно вручную проверить заказ — напиши администратору магазина.
+
+'
         'Совет: в сообщении сразу укажи номер заказа и свой nickname.'
     )
     await safe_edit_or_send(callback, text, reply_markup=back_home())

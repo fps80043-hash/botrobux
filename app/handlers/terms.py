@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 from aiogram import Router, F
@@ -18,9 +19,12 @@ async def accept_terms(callback: CallbackQuery) -> None:
         await callback.message.delete()
     except Exception:
         pass
+    await callback.message.answer('✨ Убираю старые кнопки...', reply_markup=ReplyKeyboardRemove())
     is_admin = await site_api.is_admin(callback.from_user.id)
     await callback.message.answer(
-        '<b>✅ Соглашение принято</b>\n\nДобро пожаловать в главное меню.',
+        '<b>✅ Соглашение принято</b>
+
+Добро пожаловать в главное меню.',
         reply_markup=main_menu(is_admin=is_admin),
     )
     await callback.answer('Готово ✨')
