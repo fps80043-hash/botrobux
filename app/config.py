@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -36,6 +35,7 @@ def _int_set(name: str) -> set[int]:
 
 @dataclass(frozen=True)
 class Settings:
+    build_tag: str = os.getenv('BUILD_TAG', 'fixed5-inline-api-fallback')
     bot_token: str = os.getenv('BOT_TOKEN', '')
     api_base_url: str = os.getenv('API_BASE_URL', '').rstrip('/')
     api_secret: str = os.getenv('API_SECRET', '')
@@ -45,13 +45,13 @@ class Settings:
     terms_version: str = os.getenv('TERMS_VERSION', '1').strip() or '1'
 
     endpoint_profile: str = os.getenv('ENDPOINT_PROFILE', '/api/auth/me')
-    endpoint_balance: str = os.getenv('ENDPOINT_BALANCE', '/balance')
-    endpoint_stock: str = os.getenv('ENDPOINT_STOCK', '/stock')
-    endpoint_orders: str = os.getenv('ENDPOINT_ORDERS', '/tx')
-    endpoint_packages: str = os.getenv('ENDPOINT_PACKAGES', '/api/robux/packages')
-    endpoint_shop_config: str = os.getenv('ENDPOINT_SHOP_CONFIG', '/shop_config')
-    endpoint_create_order: str = os.getenv('ENDPOINT_CREATE_ORDER', '/api/orders/create')
-    endpoint_link: str = os.getenv('ENDPOINT_LINK', '/api/telegram/link')
+    endpoint_balance: str = os.getenv('ENDPOINT_BALANCE', '').strip()
+    endpoint_stock: str = os.getenv('ENDPOINT_STOCK', '').strip()
+    endpoint_orders: str = os.getenv('ENDPOINT_ORDERS', '/tx').strip() or '/tx'
+    endpoint_packages: str = os.getenv('ENDPOINT_PACKAGES', '').strip()
+    endpoint_shop_config: str = os.getenv('ENDPOINT_SHOP_CONFIG', '/shop_config').strip() or '/shop_config'
+    endpoint_create_order: str = os.getenv('ENDPOINT_CREATE_ORDER', '/api/orders/create').strip() or '/api/orders/create'
+    endpoint_link: str = os.getenv('ENDPOINT_LINK', '/api/telegram/link').strip() or '/api/telegram/link'
 
     endpoint_admin_get_config: str = os.getenv('ENDPOINT_ADMIN_GET_CONFIG', '/api/admin/shop/config')
     endpoint_admin_update_config: str = os.getenv('ENDPOINT_ADMIN_UPDATE_CONFIG', '/api/admin/shop/config')

@@ -23,6 +23,7 @@ async def main() -> None:
         raise RuntimeError('API_BASE_URL is not set')
 
     logging.basicConfig(level=logging.INFO)
+    logging.info('Starting bot build: %s', settings.build_tag)
 
     bot = Bot(
         token=settings.bot_token,
@@ -39,7 +40,7 @@ async def main() -> None:
     dp.include_router(admin_router)
 
     try:
-        await dp.start_polling(bot)
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         await api_client.close()
         await bot.session.close()
