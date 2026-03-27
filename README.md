@@ -1,13 +1,39 @@
-# Telegram Robux Bot v2 fixed5
+# RBX-ST Telegram Bot (Bot API edition)
 
-Этот билд добавляет более безопасные fallback для API сайта и метку build в /start.
+This build is wired to the new `/api/bot/*` endpoints.
 
-Ключевое:
-- build tag выводится в приветствии и логах
-- профиль берётся с /api/auth/me
-- баланс по умолчанию берётся из профиля, если отдельного route нет
-- наличие берётся из stock route или из shop_config
-- reply-клавиатура принудительно убирается
-- есть команда /menu
+## Railway
+Start command:
 
-Смотри .env.example для актуальных переменных.
+```bash
+python -m app.main
+```
+
+Variables:
+
+```env
+BOT_TOKEN=...
+API_BASE_URL=https://your-domain
+API_SECRET=the_same_BOT_API_SECRET_from_site
+TEST_SITE_USER_ID=1
+ADMIN_IDS=1
+DEFAULT_START_GIF=
+BUILD_TAG=bot-api-v1
+```
+
+## Main endpoints used
+- `/api/bot/profile`
+- `/api/bot/balance`
+- `/api/bot/robux/stock`
+- `/api/bot/robux/quote`
+- `/api/bot/robux/orders`
+- `/api/bot/telegram/link`
+- `/api/bot/admin/robux/settings`
+- `/api/bot/admin/users/find`
+- `/api/bot/admin/balance_adjust`
+- `/api/bot/admin/orders/recent`
+
+## Notes
+- Profile/balance/admin are now read through the bot API, not browser cookies.
+- Test mode with `TEST_SITE_USER_ID=1` is supported.
+- Price/stock changes from Telegram sync with the site through the shared backend.

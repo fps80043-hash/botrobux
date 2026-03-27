@@ -35,7 +35,7 @@ def _int_set(name: str) -> set[int]:
 
 @dataclass(frozen=True)
 class Settings:
-    build_tag: str = os.getenv('BUILD_TAG', 'fixed5-inline-api-fallback')
+    build_tag: str = os.getenv('BUILD_TAG', 'bot-api-v1')
     bot_token: str = os.getenv('BOT_TOKEN', '')
     api_base_url: str = os.getenv('API_BASE_URL', '').rstrip('/')
     api_secret: str = os.getenv('API_SECRET', '')
@@ -44,22 +44,22 @@ class Settings:
     default_start_gif: str = os.getenv('DEFAULT_START_GIF', '').strip()
     terms_version: str = os.getenv('TERMS_VERSION', '1').strip() or '1'
 
-    endpoint_profile: str = os.getenv('ENDPOINT_PROFILE', '/api/auth/me')
-    endpoint_balance: str = os.getenv('ENDPOINT_BALANCE', '').strip()
-    endpoint_stock: str = os.getenv('ENDPOINT_STOCK', '').strip()
-    endpoint_orders: str = os.getenv('ENDPOINT_ORDERS', '/tx').strip() or '/tx'
-    endpoint_packages: str = os.getenv('ENDPOINT_PACKAGES', '').strip()
-    endpoint_shop_config: str = os.getenv('ENDPOINT_SHOP_CONFIG', '/shop_config').strip() or '/shop_config'
-    endpoint_create_order: str = os.getenv('ENDPOINT_CREATE_ORDER', '/api/orders/create').strip() or '/api/orders/create'
-    endpoint_link: str = os.getenv('ENDPOINT_LINK', '/api/telegram/link').strip() or '/api/telegram/link'
+    endpoint_health: str = os.getenv('ENDPOINT_HEALTH', '/api/bot/health').strip() or '/api/bot/health'
+    endpoint_profile: str = os.getenv('ENDPOINT_PROFILE', '/api/bot/profile').strip() or '/api/bot/profile'
+    endpoint_balance: str = os.getenv('ENDPOINT_BALANCE', '/api/bot/balance').strip() or '/api/bot/balance'
+    endpoint_stock: str = os.getenv('ENDPOINT_STOCK', '/api/bot/robux/stock').strip() or '/api/bot/robux/stock'
+    endpoint_quote: str = os.getenv('ENDPOINT_QUOTE', '/api/bot/robux/quote').strip() or '/api/bot/robux/quote'
+    endpoint_orders: str = os.getenv('ENDPOINT_ORDERS', '/api/bot/robux/orders').strip() or '/api/bot/robux/orders'
+    endpoint_shop_catalog: str = os.getenv('ENDPOINT_SHOP_CATALOG', '/api/bot/shop/catalog').strip() or '/api/bot/shop/catalog'
+    endpoint_shop_orders: str = os.getenv('ENDPOINT_SHOP_ORDERS', '/api/bot/shop/orders').strip() or '/api/bot/shop/orders'
+    endpoint_link: str = os.getenv('ENDPOINT_LINK', '/api/bot/telegram/link').strip() or '/api/bot/telegram/link'
+    endpoint_create_order: str = os.getenv('ENDPOINT_CREATE_ORDER', '/api/robux/order_create').strip() or '/api/robux/order_create'
 
-    endpoint_admin_get_config: str = os.getenv('ENDPOINT_ADMIN_GET_CONFIG', '/api/admin/shop/config')
-    endpoint_admin_update_config: str = os.getenv('ENDPOINT_ADMIN_UPDATE_CONFIG', '/api/admin/shop/config')
-    endpoint_admin_get_stock: str = os.getenv('ENDPOINT_ADMIN_GET_STOCK', '/api/admin/stock')
-    endpoint_admin_update_stock: str = os.getenv('ENDPOINT_ADMIN_UPDATE_STOCK', '/api/admin/stock')
-    endpoint_admin_orders: str = os.getenv('ENDPOINT_ADMIN_ORDERS', '/api/admin/orders')
-    endpoint_admin_find_user: str = os.getenv('ENDPOINT_ADMIN_FIND_USER', '/api/admin/users/find')
-    endpoint_admin_update_balance: str = os.getenv('ENDPOINT_ADMIN_UPDATE_BALANCE', '/api/admin/users/balance')
+    endpoint_admin_get_config: str = os.getenv('ENDPOINT_ADMIN_GET_CONFIG', '/api/bot/admin/robux/settings').strip() or '/api/bot/admin/robux/settings'
+    endpoint_admin_update_config: str = os.getenv('ENDPOINT_ADMIN_UPDATE_CONFIG', '/api/bot/admin/robux/settings').strip() or '/api/bot/admin/robux/settings'
+    endpoint_admin_orders: str = os.getenv('ENDPOINT_ADMIN_ORDERS', '/api/bot/admin/orders/recent').strip() or '/api/bot/admin/orders/recent'
+    endpoint_admin_find_user: str = os.getenv('ENDPOINT_ADMIN_FIND_USER', '/api/bot/admin/users/find').strip() or '/api/bot/admin/users/find'
+    endpoint_admin_update_balance: str = os.getenv('ENDPOINT_ADMIN_UPDATE_BALANCE', '/api/bot/admin/balance_adjust').strip() or '/api/bot/admin/balance_adjust'
 
 
 settings = Settings()

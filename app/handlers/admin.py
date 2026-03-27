@@ -58,7 +58,7 @@ async def admin_prices(callback: CallbackQuery) -> None:
         await callback.answer(_not_admin(), show_alert=True)
         return
     try:
-        config = await site_api.admin_get_config()
+        config = await site_api.admin_get_config(callback.from_user.id)
         price = config.get('price_per_robux') or config.get('robux_price') or 'не найдено'
         text = f'<b>💸 Цены</b>\n\nТекущая цена за 1 Robux: <b>{price}</b>'
     except Exception:
@@ -81,7 +81,7 @@ async def admin_set_price_start(callback: CallbackQuery, state: FSMContext) -> N
 async def admin_set_price_finish(message: Message, state: FSMContext) -> None:
     try:
         price = float(message.text.replace(',', '.').strip())
-        result = await site_api.admin_set_price(price)
+        result = await site_api.admin_set_price(message.from_user.id, price)
         await message.answer(f'✅ Цена обновлена. Ответ backend: <code>{result}</code>')
     except Exception:
         await message.answer('⚠️ Не удалось обновить цену. Проверь admin endpoint на сайте.')
@@ -95,7 +95,7 @@ async def admin_stock(callback: CallbackQuery) -> None:
         await callback.answer(_not_admin(), show_alert=True)
         return
     try:
-        stock = await site_api.admin_get_stock()
+        stock = await site_api.admin_get_stock(callback.from_user.id)
         amount = stock.get('available_robux') or stock.get('robux') or stock.get('stock') or 0
         text = f'<b>📦 Остаток</b>\n\nТекущий остаток Robux: <b>{amount}</b>'
     except Exception:
@@ -118,7 +118,7 @@ async def admin_set_stock_start(callback: CallbackQuery, state: FSMContext) -> N
 async def admin_set_stock_finish(message: Message, state: FSMContext) -> None:
     try:
         amount = int(message.text.strip())
-        result = await site_api.admin_set_stock(amount)
+        result = await site_api.admin_set_stock(message.from_user.id, amount)
         await message.answer(f'✅ Остаток обновлён. Ответ backend: <code>{result}</code>')
     except Exception:
         await message.answer('⚠️ Не удалось обновить остаток. Проверь admin endpoint на сайте.')
@@ -132,7 +132,7 @@ async def admin_orders(callback: CallbackQuery) -> None:
         await callback.answer(_not_admin(), show_alert=True)
         return
     try:
-        orders = await site_api.admin_orders()
+        orders = await site_api.admin_orders(callback.from_user.id)
         if not orders:
             text = '<b>📜 Последние заказы</b>\n\nПока пусто.'
         else:
@@ -167,7 +167,7 @@ async def admin_user(callback: CallbackQuery, state: FSMContext) -> None:
 async def admin_user_query(message: Message, state: FSMContext) -> None:
     query = message.text.strip()
     try:
-        result = await site_api.admin_find_user(query)
+        result = await site_api.admin_find_user(message.from_user.id, query)
         user = result.get('user') if isinstance(result, dict) and isinstance(result.get('user'), dict) else result
         if not isinstance(user, dict):
             raise ValueError('user not found')
@@ -205,7 +205,7 @@ async def admin_set_balance_finish(message: Message, state: FSMContext) -> None:
     try:
         user_id = int(data['found_user_id'])
         balance = float(message.text.replace(',', '.').strip())
-        result = await site_api.admin_set_balance(user_id, balance)
+        result = await site_api.admin_set_balance(message.from_user.id, user_id, balance)
         await message.answer(f'✅ Баланс обновлён. Ответ backend: <code>{result}</code>')
     except Exception:
         await message.answer('⚠️ Не удалось обновить баланс. Проверь admin endpoint на сайте.')

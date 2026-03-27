@@ -12,7 +12,7 @@ class APIClient:
             base_url=settings.api_base_url,
             timeout=20.0,
             headers={
-                'X-Internal-Secret': settings.api_secret,
+                'X-API-SECRET': settings.api_secret,
                 'Content-Type': 'application/json',
             },
         )
@@ -31,17 +31,17 @@ class APIClient:
         except Exception:
             return None
 
-    async def post(self, path: str, json_data: dict[str, Any]) -> Any:
-        response = await self._client.post(path, json=json_data)
+    async def post(self, path: str, json_data: dict[str, Any], params: dict[str, Any] | None = None) -> Any:
+        response = await self._client.post(path, json=json_data, params=params)
         response.raise_for_status()
         try:
             return response.json()
         except Exception:
             return response.text
 
-    async def post_optional(self, path: str, json_data: dict[str, Any]) -> Any | None:
+    async def post_optional(self, path: str, json_data: dict[str, Any], params: dict[str, Any] | None = None) -> Any | None:
         try:
-            return await self.post(path, json_data)
+            return await self.post(path, json_data, params=params)
         except Exception:
             return None
 
