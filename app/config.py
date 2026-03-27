@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 from dotenv import load_dotenv
 
@@ -39,7 +39,7 @@ class Settings:
     api_base_url: str = os.getenv('API_BASE_URL', '').rstrip('/')
     api_secret: str = os.getenv('API_SECRET', '')
     test_site_user_id: int | None = _optional_int('TEST_SITE_USER_ID')
-    admin_ids: set[int] = _int_set('ADMIN_IDS')
+    admin_ids: set[int] = field(default_factory=lambda: _int_set('ADMIN_IDS'))
     default_start_gif: str = os.getenv('DEFAULT_START_GIF', '').strip()
     terms_version: str = os.getenv('TERMS_VERSION', '1').strip() or '1'
 
