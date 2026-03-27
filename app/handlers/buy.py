@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.utils.tg import safe_edit_or_send
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
@@ -34,7 +35,7 @@ async def buy_pick(callback: CallbackQuery, state: FSMContext) -> None:
         f'Цена: <b>{money(package.get("price", 0))}</b>\n\n'
         'Отправь Roblox nickname следующим сообщением.'
     )
-    await callback.message.edit_text(text, reply_markup=back_home())
+    await safe_edit_or_send(callback, text, reply_markup=back_home())
     await callback.answer()
 
 
@@ -83,5 +84,5 @@ async def buy_confirm(callback: CallbackQuery, state: FSMContext) -> None:
     except Exception:
         text = '⚠️ Не удалось оформить покупку. Проверь баланс, каталог пакетов и backend.'
     await state.clear()
-    await callback.message.edit_text(text, reply_markup=back_home())
+    await safe_edit_or_send(callback, text, reply_markup=back_home())
     await callback.answer()

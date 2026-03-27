@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from app.utils.tg import safe_edit_or_send
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
+from aiogram.fsm.context import FSMContext
 
 from app.keyboards.inline import main_menu, back_home, packages_keyboard
 from app.services.site_api import site_api
@@ -26,7 +28,7 @@ async def _home_text(callback: CallbackQuery) -> str:
 async def menu_home(callback: CallbackQuery) -> None:
     is_admin = await site_api.is_admin(callback.from_user.id)
     text = await _home_text(callback)
-    await callback.message.edit_text(text, reply_markup=main_menu(is_admin=is_admin))
+    await safe_edit_or_send(callback, text, reply_markup=main_menu(is_admin=is_admin))
     await callback.answer()
 
 
@@ -44,7 +46,7 @@ async def menu_profile(callback: CallbackQuery) -> None:
         )
     except Exception:
         text = '⚠️ Не удалось получить профиль. Возможно, аккаунт ещё не привязан к сайту.'
-    await callback.message.edit_text(text, reply_markup=back_home())
+    await safe_edit_or_send(callback, text, reply_markup=back_home())
     await callback.answer()
 
 
@@ -59,7 +61,7 @@ async def menu_balance(callback: CallbackQuery) -> None:
         )
     except Exception:
         text = '⚠️ Не удалось загрузить баланс.'
-    await callback.message.edit_text(text, reply_markup=back_home())
+    await safe_edit_or_send(callback, text, reply_markup=back_home())
     await callback.answer()
 
 
@@ -75,7 +77,7 @@ async def menu_stock(callback: CallbackQuery) -> None:
         )
     except Exception:
         text = '⚠️ Не удалось получить наличие.'
-    await callback.message.edit_text(text, reply_markup=back_home())
+    await safe_edit_or_send(callback, text, reply_markup=back_home())
     await callback.answer()
 
 
@@ -96,7 +98,7 @@ async def menu_orders(callback: CallbackQuery) -> None:
             text = '\n'.join(lines)
     except Exception:
         text = '⚠️ Не удалось загрузить историю заказов.'
-    await callback.message.edit_text(text, reply_markup=back_home())
+    await safe_edit_or_send(callback, text, reply_markup=back_home())
     await callback.answer()
 
 
@@ -113,12 +115,12 @@ async def menu_shop(callback: CallbackQuery) -> None:
     except Exception:
         text = '⚠️ Не удалось загрузить каталог пакетов.'
         markup = back_home()
-    await callback.message.edit_text(text, reply_markup=markup)
+    await safe_edit_or_send(callback, text, reply_markup=markup)
     await callback.answer()
 
 
 @router.callback_query(F.data == 'menu:link')
-async def menu_link(callback: CallbackQuery) -> None:
+async def menu_link(callback: CallbackQuery, state: FSMContext) -> None:
     if site_api.identity_params(callback.from_user.id).get('site_user_id') is not None:
         text = (
             '<b>🔗 Привязка аккаунта</b>\n\n'
@@ -126,12 +128,14 @@ async def menu_link(callback: CallbackQuery) -> None:
             f'Все запросы сейчас идут от ID сайта: <code>{site_api.identity_params(callback.from_user.id).get("site_user_id")}</code>'
         )
     else:
+        from app.handlers.link import LinkState
+        await state.set_state(LinkState.waiting_code)
         text = (
             '<b>🔗 Привязка аккаунта</b>\n\n'
             'Отправь код привязки следующим сообщением в чат.\n'
             'Пример: <code>RBX-483912</code>'
         )
-    await callback.message.edit_text(text, reply_markup=back_home())
+    await safe_edit_or_send(callback, text, reply_markup=back_home())
     await callback.answer()
 
 
@@ -142,5 +146,5 @@ async def menu_support(callback: CallbackQuery) -> None:
         'Если оплата зависла, Robux не пришли или нужно вручную проверить заказ — напиши администратору магазина.\n\n'
         'Совет: в сообщении сразу укажи номер заказа и свой nickname.'
     )
-    await callback.message.edit_text(text, reply_markup=back_home())
+    await safe_edit_or_send(callback, text, reply_markup=back_home())
     await callback.answer()

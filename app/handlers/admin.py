@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.utils.tg import safe_edit_or_send
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
@@ -47,7 +48,7 @@ async def admin_guard(callback: CallbackQuery) -> None:
             '• поиск пользователя\n'
             '• правка стартовой GIF'
         )
-        await callback.message.edit_text(text, reply_markup=admin_menu())
+        await safe_edit_or_send(callback, text, reply_markup=admin_menu())
         await callback.answer()
 
 
@@ -62,7 +63,7 @@ async def admin_prices(callback: CallbackQuery) -> None:
         text = f'<b>💸 Цены</b>\n\nТекущая цена за 1 Robux: <b>{price}</b>'
     except Exception:
         text = '<b>💸 Цены</b>\n\nBackend ещё не отдаёт admin config endpoint.'
-    await callback.message.edit_text(text, reply_markup=admin_prices_keyboard())
+    await safe_edit_or_send(callback, text, reply_markup=admin_prices_keyboard())
     await callback.answer()
 
 
@@ -99,7 +100,7 @@ async def admin_stock(callback: CallbackQuery) -> None:
         text = f'<b>📦 Остаток</b>\n\nТекущий остаток Robux: <b>{amount}</b>'
     except Exception:
         text = '<b>📦 Остаток</b>\n\nBackend ещё не отдаёт admin stock endpoint.'
-    await callback.message.edit_text(text, reply_markup=admin_stock_keyboard())
+    await safe_edit_or_send(callback, text, reply_markup=admin_stock_keyboard())
     await callback.answer()
 
 
@@ -145,7 +146,7 @@ async def admin_orders(callback: CallbackQuery) -> None:
             text = '\n'.join(lines)
     except Exception:
         text = '<b>📜 Последние заказы</b>\n\nBackend ещё не отдаёт admin orders endpoint.'
-    await callback.message.edit_text(text, reply_markup=admin_menu())
+    await safe_edit_or_send(callback, text, reply_markup=admin_menu())
     await callback.answer()
 
 
@@ -223,7 +224,7 @@ async def admin_gif(callback: CallbackQuery) -> None:
         f'Текущее значение: <code>{current}</code>\n\n'
         'Сюда можно сохранить Telegram <b>file_id</b> анимации или прямую ссылку.'
     )
-    await callback.message.edit_text(text, reply_markup=admin_gif_keyboard())
+    await safe_edit_or_send(callback, text, reply_markup=admin_gif_keyboard())
     await callback.answer()
 
 

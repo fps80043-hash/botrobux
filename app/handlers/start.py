@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from aiogram import Router
 from aiogram.filters import CommandStart
-from aiogram.types import Message
+from aiogram.types import Message, ReplyKeyboardRemove
 
 from app.config import settings
 from app.keyboards.inline import terms_keyboard, main_menu
@@ -15,6 +15,7 @@ router = Router()
 
 @router.message(CommandStart())
 async def start_handler(message: Message) -> None:
+    await message.answer('✨ Обновляю интерфейс...', reply_markup=ReplyKeyboardRemove())
     gif = state_repo.get_setting('start_gif') or settings.default_start_gif
     caption = welcome_caption(settings.test_site_user_id is not None, settings.test_site_user_id)
 

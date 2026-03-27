@@ -9,26 +9,61 @@ from app.utils.formatters import pick
 
 class SiteAPI:
     def identity_params(self, telegram_id: int) -> dict[str, Any]:
-        data: dict[str, Any] = {'telegram_id': telegram_id}
+        data: dict[str, Any] = {
+            'telegram_id': telegram_id,
+            'tg_id': telegram_id,
+        }
         if settings.test_site_user_id is not None:
-            data['site_user_id'] = settings.test_site_user_id
+            uid = settings.test_site_user_id
+            data.update({
+                'site_user_id': uid,
+                'user_id': uid,
+                'uid': uid,
+                'id': uid,
+            })
         return data
 
     async def profile(self, telegram_id: int) -> dict[str, Any]:
-        data = await api_client.get(settings.endpoint_profile, params=self.identity_params(telegram_id))
+        params = self.identity_params(telegram_id)
+        fallback: dict[str, Any] = {}
+        if settings.test_site_user_id is not None:
+            fallback = {
+                'id': settings.test_site_user_id,
+                'username': 'Admin' if settings.test_site_user_id == 1 else f'User {settings.test_site_user_id}',
+                'is_admin': settings.test_site_user_id == 1 or telegram_id in settings.admin_ids,
+            }
+        try:
+            data = await api_client.get(settings.endpoint_profile, params=params)
+        except Exception:
+            data = {}
         user = data.get('user') if isinstance(data, dict) and isinstance(data.get('user'), dict) else data
-        return user if isinstance(user, dict) else {}
+        if isinstance(user, dict) and user:
+            if 'id' not in user and settings.test_site_user_id is not None:
+                user['id'] = settings.test_site_user_id
+            if settings.test_site_user_id == 1:
+                user['is_admin'] = bool(user.get('is_admin', True))
+            return user
+        balance_data = await self.balance(telegram_id)
+        fallback['balance'] = balance_data.get('balance', 0)
+        return fallback
 
     async def balance(self, telegram_id: int) -> dict[str, Any]:
         params = self.identity_params(telegram_id)
         try:
             data = await api_client.get(settings.endpoint_balance, params=params)
         except Exception:
-            profile = await self.profile(telegram_id)
-            return {'balance': profile.get('balance', 0)}
+            return {'balance': 0, 'currency': 'RUB'}
         if isinstance(data, dict):
-            return data
-        return {'balance': data}
+            if 'balance' in data:
+                return data
+            for key in ('user', 'data'):
+                nested = data.get(key)
+                if isinstance(nested, dict) and 'balance' in nested:
+                    return nested
+            for key in ('amount', 'value'):
+                if key in data:
+                    return {'balance': data[key], 'currency': data.get('currency', 'RUB')}
+        return {'balance': data, 'currency': 'RUB'}
 
     async def stock(self) -> dict[str, Any]:
         data = await api_client.get(settings.endpoint_stock)
@@ -71,8 +106,7 @@ class SiteAPI:
         for key in ('packages', 'robux_packages', 'catalog'):
             if isinstance(config.get(key), list):
                 return config[key]
-        # fallback for simple config with price_per_robux
-        price_per_robux = config.get('price_per_robux') or config.get('robux_price')
+        price_per_robux = config.get('price_per_robux') or config.get('robux_price') or config.get('price')
         if price_per_robux:
             return [
                 {'id': 1, 'title': '400 Robux', 'robux_amount': 400, 'price': round(float(price_per_robux) * 400)},
