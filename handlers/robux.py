@@ -18,6 +18,9 @@ router = Router(name="robux")
 log = logging.getLogger(__name__)
 
 
+RULE = "━━━━━━━━━━━━━━━━━━━━━━"
+
+
 class RobuxStates(StatesGroup):
     waiting_for_amount = State()
 
@@ -31,8 +34,9 @@ async def _ensure_linked(target: Message | CallbackQuery) -> bool:
     if not link:
         msg = target if isinstance(target, Message) else target.message
         await msg.answer(
-            "🔗 Чтобы покупать Robux через бота, сначала привяжи аккаунт сайта.\n\n"
-            "Получи код на сайте → Безопасность → Telegram-бот, затем пришли /link &lt;код&gt;.",
+            "🔗 <b>Сначала привяжи аккаунт</b>\n\n"
+            "Получи код на сайте → Профиль → Безопасность → Telegram-бот, "
+            "затем пришли:  <code>/link 123456</code>",
             reply_markup=link_prompt_kb(), parse_mode="HTML",
         )
         if isinstance(target, CallbackQuery):
@@ -41,8 +45,20 @@ async def _ensure_linked(target: Message | CallbackQuery) -> bool:
     return True
 
 
+def _stock_indicator(avail: int) -> tuple[str, str]:
+    """Returns (emoji, text) describing stock level."""
+    if avail >= 10000:
+        return "🟢", "много в наличии"
+    if avail >= 1000:
+        return "🟡", "средний запас"
+    if avail > 0:
+        return "🟠", "мало"
+    return "🔴", "временно нет"
+
+
 async def _render_start(target: Message | CallbackQuery) -> None:
     msg = target if isinstance(target, Message) else target.message
+
     try:
         stock = await api.robux_stock()
     except ApiError as e:
@@ -51,25 +67,39 @@ async def _render_start(target: Message | CallbackQuery) -> None:
 
     avail = int(stock.get("available") or stock.get("stock") or 0)
     rate = stock.get("rate")
+    stock_emo, stock_txt = _stock_indicator(avail)
+
     rate_str = ""
     if rate:
         try:
-            rate_str = f"~{float(rate):.2f} ₽ за 1 R$"
+            rate_str = f"<b>{float(rate):.2f}</b> ₽ за 1 R$"
         except (TypeError, ValueError):
             rate_str = ""
 
+    # Try also showing current balance for context
+    try:
+        bal = await api.get_balance(target.from_user.id)
+        balance_line = f"💰  Твой баланс:  <b>{fmt_rub(bal)}</b>\n"
+    except ApiError:
+        balance_line = ""
+
     text = (
-        "💎 <b>Покупка Robux</b>\n\n"
-        f"📊 <b>В наличии:</b> {fmt_num(avail)} R$\n"
+        f"💎  <b>Покупка Robux</b>\n"
+        f"{RULE}\n\n"
+        f"{stock_emo}  В наличии:  <b>{fmt_num(avail)} R$</b>  <i>({stock_txt})</i>\n"
     )
     if rate_str:
-        text += f"💱 <b>Курс:</b> {rate_str}\n"
+        text += f"💱  Курс:  {rate_str}\n"
+    text += balance_line
     text += (
-        "\nВыбери сумму ниже или введи свою.\n"
-        "Минимум — <b>50 R$</b>.\n\n"
-        "ℹ️ Доставка идёт через геймпасс (~5-15 минут). "
-        "Финальное оформление — на сайте, чтобы можно было ввести ссылку на геймпасс или ник."
+        f"\n{RULE}\n"
+        f"Выбери сумму или введи свою. Минимум — <b>50 R$</b>.\n\n"
+        f"⚡  Доставка: ~5-15 минут\n"
+        f"🔒  Безопасно: только через геймпасс\n"
+        f"🛡  Гарантия возврата средств\n\n"
+        f"<i>Финальное оформление — на сайте: там укажешь ник или ссылку на геймпасс.</i>"
     )
+
     if isinstance(target, CallbackQuery):
         try:
             await msg.edit_text(text, reply_markup=robux_amount_kb(), parse_mode="HTML")
@@ -90,6 +120,7 @@ async def cmd_buy(msg: Message, state: FSMContext):
 
 
 @router.callback_query(F.data == "robux:start")
+@router.callback_query(F.data == "robux:refresh")
 async def cb_robux_start(cb: CallbackQuery, state: FSMContext):
     if not await _ensure_linked(cb):
         return
@@ -100,8 +131,10 @@ async def cb_robux_start(cb: CallbackQuery, state: FSMContext):
 async def _show_quote(target: Message | CallbackQuery, amount: int) -> None:
     msg = target if isinstance(target, Message) else target.message
     if amount < 50:
-        text = "❌ Минимальная сумма — <b>50 R$</b>. Выбери побольше."
-        await msg.answer(text, reply_markup=robux_amount_kb(), parse_mode="HTML")
+        await msg.answer(
+            "❌ Минимальная сумма — <b>50 R$</b>. Выбери побольше.",
+            reply_markup=robux_amount_kb(), parse_mode="HTML",
+        )
         if isinstance(target, CallbackQuery):
             await target.answer()
         return
@@ -114,7 +147,10 @@ async def _show_quote(target: Message | CallbackQuery, amount: int) -> None:
     try:
         quote = await api.robux_quote(amount)
     except ApiError as e:
-        await msg.answer(f"⚠️ Не удалось рассчитать цену: <i>{esc(e)}</i>", parse_mode="HTML")
+        await msg.answer(
+            f"⚠️ Не удалось рассчитать цену: <i>{esc(e)}</i>",
+            parse_mode="HTML",
+        )
         if isinstance(target, CallbackQuery):
             await target.answer()
         return
@@ -125,35 +161,45 @@ async def _show_quote(target: Message | CallbackQuery, amount: int) -> None:
     can_pay = balance >= rub_price
 
     lines = [
-        f"💎 <b>{fmt_robux(amount)}</b>",
+        f"💎  <b>{fmt_robux(amount)}</b>",
+        f"{RULE}",
         "",
-        f"💰 <b>К оплате:</b> {fmt_rub(rub_price)}",
+        f"💸  <b>К оплате:</b>  {fmt_rub(rub_price)}",
     ]
     if rate:
         try:
-            lines.append(f"💱 <b>Курс:</b> {float(rate):.2f} ₽/R$")
+            lines.append(f"💱  Курс:  <b>{float(rate):.2f}</b> ₽/R$")
         except (TypeError, ValueError):
             pass
     if gp_amount and int(gp_amount) != amount:
-        lines.append(f"🎫 <b>Геймпасс:</b> {fmt_num(gp_amount)} R$ (с учётом комиссии Roblox)")
+        lines.append(f"🎫  Геймпасс:  <b>{fmt_num(gp_amount)} R$</b>  <i>(с комиссией Roblox)</i>")
     lines.append("")
-    lines.append(f"<b>Твой баланс:</b> {fmt_rub(balance)}")
+    lines.append(f"💰  Баланс:  <b>{fmt_rub(balance)}</b>")
+    lines.append("")
+    lines.append(RULE)
 
     if can_pay:
-        lines.append("\n✅ Баланса достаточно. Оформи заказ на сайте — там укажешь ник/геймпасс.")
+        # Calculate balance "remainder" after this purchase
+        remaining = balance - rub_price
+        lines.append(f"✅  <b>Баланса хватает</b>")
+        lines.append(f"После покупки останется:  <b>{fmt_rub(remaining)}</b>")
+        lines.append("")
+        lines.append("Жми «Оформить на сайте» — там введёшь ник или ссылку.")
     else:
         diff = rub_price - balance
-        lines.append(f"\n⚠️ Не хватает <b>{fmt_rub(diff)}</b>. Сначала пополни баланс на сайте.")
+        lines.append(f"⚠️  <b>Не хватает:  {fmt_rub(diff)}</b>")
+        lines.append("")
+        lines.append("Сначала пополни баланс, затем возвращайся.")
 
     text = "\n".join(lines)
     if isinstance(target, CallbackQuery):
         try:
-            await msg.edit_text(text, reply_markup=robux_confirm_kb(amount), parse_mode="HTML")
+            await msg.edit_text(text, reply_markup=robux_confirm_kb(amount, can_pay), parse_mode="HTML")
         except Exception:
-            await msg.answer(text, reply_markup=robux_confirm_kb(amount), parse_mode="HTML")
+            await msg.answer(text, reply_markup=robux_confirm_kb(amount, can_pay), parse_mode="HTML")
         await target.answer()
     else:
-        await msg.answer(text, reply_markup=robux_confirm_kb(amount), parse_mode="HTML")
+        await msg.answer(text, reply_markup=robux_confirm_kb(amount, can_pay), parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith("robux:amt:"))
@@ -175,10 +221,13 @@ async def cb_robux_custom(cb: CallbackQuery, state: FSMContext):
         return
     await state.set_state(RobuxStates.waiting_for_amount)
     text = (
-        "✏️ <b>Введи количество Robux</b>\n\n"
-        "Просто отправь число — например, <code>2500</code>.\n"
-        "Минимум — <b>50 R$</b>, максимум — <b>50 000 R$</b>.\n\n"
-        "Чтобы отменить — нажми /menu."
+        "✏️  <b>Введи количество Robux</b>\n"
+        f"{RULE}\n\n"
+        "Просто отправь число — например, <code>2500</code>.\n\n"
+        "📏  Лимиты:\n"
+        "•  Минимум — <b>50 R$</b>\n"
+        "•  Максимум — <b>50 000 R$</b>\n\n"
+        "<i>Чтобы отменить — нажми /menu или кнопку ниже.</i>"
     )
     try:
         await cb.message.edit_text(text, reply_markup=back_to_menu_kb(), parse_mode="HTML")

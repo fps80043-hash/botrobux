@@ -46,7 +46,8 @@ LOG_LEVEL: str = _get_optional("LOG_LEVEL", "INFO").upper()
 
 
 # Bot-level constants
-BOT_NAME = "RBX Store Bot"
+BOT_NAME = "RBX Robux Bot"
+BOT_TAGLINE = "Покупка Robux в один клик"
 ROBUX_PRESETS = (100, 400, 800, 1700, 4500, 10000)
 HTTP_TIMEOUT_SEC = 15
 PROFILE_CACHE_SEC = 30  # cache /api/bot/profile responses for this many seconds

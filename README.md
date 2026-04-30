@@ -1,18 +1,19 @@
-# RBX Store — Telegram Bot
+# RBX Robux Bot — специализированный Telegram-бот для покупки Robux
 
-Бот для пользователей сайта **RBX ST Shop**: продажа Robux, проверка баланса, отслеживание заказов, привязка профиля Telegram ↔ сайт.
+Бот **только** про Robux: котировка, проверка наличия, баланс, история заказов, привязка аккаунта сайта. Магазин аккаунтов и других товаров — в отдельном боте (будет позже).
 
 ## Что умеет
 
 **Для пользователей:**
-- 💎 Покупка Robux — стоковые пресеты + произвольная сумма, расчёт цены и проверка баланса
-- 👤 Профиль — баланс, ID, email, статус Premium, привязка Telegram-аккаунта
-- 🛒 Каталог магазина — навигация по категориям, цены, описания (read-only — оплата на сайте)
-- 📦 Заказы — последние заказы Robux + покупки магазина с актуальным статусом
-- 🔗 Привязка аккаунта по 6-значному коду (генерируется на сайте)
+- 💎 Калькулятор Robux — пресеты от 100 до 10 000 + произвольная сумма
+- 💰 Реальный баланс с сайта в один клик
+- 📋 История заказов Robux со статусами и геймпассами
+- 👤 Профиль: ID, email, статус Premium, бейджи
+- 🔗 Привязка аккаунта по 6-значному коду (без пароля)
+- 💳 Прямая ссылка на пополнение баланса
 
 **Для админов:**
-- 📊 Последние Robux-заказы со статусами
+- 📊 Свежие Robux-заказы по всем юзерам
 - 🔍 Поиск пользователя по нику / email / ID
 - 💎 Текущие настройки Robux (наличие, курс)
 
@@ -21,18 +22,18 @@
 ```
 ┌─────────────────┐       HTTPS + X-API-SECRET         ┌──────────────────┐
 │   Telegram      │ ◄────────────────────────────────► │  rbx-site        │
-│   (this bot)    │   /api/bot/profile, /balance,      │  FastAPI backend │
-│   aiogram 3     │   /robux/stock, /orders, etc.      │  (main.py)       │
+│   bot           │   /api/bot/profile, /balance,      │  FastAPI backend │
+│   aiogram 3     │   /robux/stock, /quote, /orders    │  (main.py)       │
 └─────────────────┘                                    └──────────────────┘
         ▲                                                       ▲
         │                                                       │
-        │ /link <code>                                          │ User logs in
+        │  /link <code>                                         │ User logs in
         │                                                       │ → Profile → Telegram-bot
         │                                                       │ → "Получить код"
-        └───────── 6-digit code (10 min TTL) ───────────────────┘
+        └──────────  6-digit code (10 min TTL)  ─────────────────┘
 ```
 
-Бот никогда не получает прямой доступ к БД сайта — все взаимодействия через `/api/bot/*` endpoints на бэкенде. Аутентификация: общий секрет в HTTP-header `X-API-SECRET` + идентификация пользователя по `telegram_id` (через таблицу `telegram_links`).
+Бот никогда не получает прямой доступ к БД — все взаимодействия через `/api/bot/*` endpoints на бэкенде.
 
 ## Установка
 
@@ -40,7 +41,7 @@
 
 Открой [@BotFather](https://t.me/BotFather) → `/newbot` → задай имя и username → скопируй токен.
 
-### 2. Настрой переменные
+### 2. Настрой переменные окружения
 
 ```bash
 cd bot
@@ -48,11 +49,15 @@ cp .env.example .env
 nano .env
 ```
 
-Заполни:
-- `BOT_TOKEN` — от BotFather
-- `SITE_URL` — публичный URL твоего сайта (например `https://rbx-store-production.up.railway.app`)
-- `SITE_API_SECRET` — должен **совпадать** со значением переменной `BOT_API_SECRET` на сайте (см. Railway → Variables)
-- `ADMIN_TG_IDS` — необязательно, через запятую: твой Telegram ID и других админов (узнать ID — `@userinfobot`)
+Нужно заполнить:
+
+| Переменная | Значение |
+|---|---|
+| `BOT_TOKEN` | от BotFather |
+| `SITE_URL` | `https://твой-домен.com` |
+| `SITE_API_SECRET` | **должен совпадать** с `BOT_API_SECRET` на сайте |
+| `ADMIN_TG_IDS` | (опц.) твой Telegram ID — узнать в @userinfobot |
+| `LOG_LEVEL` | `INFO` |
 
 ### 3. Запуск локально
 
@@ -61,20 +66,21 @@ pip install -r requirements.txt
 python bot.py
 ```
 
-Если всё ок — увидишь в логах:
+При старте бот сам проверит секрет и напишет в логи:
+
 ```
-INFO  | bot      | Bot started as @your_bot (id=..., RBX Store Bot)
-INFO  | bot      | Site reachable, build=...
+✅ Site reachable AND secrets match. build=...
 ```
+
+или конкретно что не так (длина секрета не совпадает, не настроен на сайте, итд).
 
 ### 4. Деплой
 
-#### Railway (рекомендуется)
+#### Railway
 
-1. Залогинься в Railway
-2. New project → Deploy from GitHub (или загрузи папку `bot/` отдельным репо)
-3. Добавь те же переменные что в `.env`
-4. Railway автоматически подхватит `Dockerfile`
+1. New project → Deploy from GitHub
+2. Variables → добавь все из `.env`
+3. Railway подхватит `Dockerfile` сам
 
 #### Docker
 
@@ -83,103 +89,64 @@ docker build -t rbx-bot .
 docker run --env-file .env rbx-bot
 ```
 
-#### systemd (на VPS)
+## Команды
 
-Скопируй проект в `/opt/rbx-bot`, создай сервис `/etc/systemd/system/rbx-bot.service`:
-
-```ini
-[Unit]
-Description=RBX Store Telegram Bot
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=/opt/rbx-bot
-EnvironmentFile=/opt/rbx-bot/.env
-ExecStart=/opt/rbx-bot/.venv/bin/python bot.py
-Restart=on-failure
-RestartSec=5
-User=rbx-bot
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Затем `sudo systemctl enable --now rbx-bot`.
-
-## Как пользователь привязывает аккаунт
-
-1. Открыть сайт, залогиниться
-2. Профиль → вкладка **Безопасность**
-3. В блоке «Telegram-бот» нажать **«Получить код привязки»**
-4. Скопировать показанный 6-значный код
-5. В Telegram открыть бота, отправить `/link 123456` (где 123456 — код)
-6. Готово — бот покажет «✅ Аккаунт привязан»
-
-Код действителен 10 минут. Один TG-аккаунт может быть привязан только к одному сайт-аккаунту в любой момент времени (привязка к новому автоматически разрывает старую).
+| Команда | Что делает |
+|---|---|
+| `/start` `/menu` | Главное меню (адаптируется под привязку и админ-статус) |
+| `/buy` `/robux` | 💎 Калькулятор покупки Robux |
+| `/balance` | 💰 Текущий баланс |
+| `/profile` | 👤 Профиль |
+| `/orders` | 📋 История заказов |
+| `/link <код>` | 🔗 Привязка |
+| `/unlink` | 🔓 Отвязка |
+| `/admin` | ⚙️ Админ-панель (только админам) |
+| `/help` | ❓ Справка |
 
 ## Безопасность
 
-- **Бот никогда не запрашивает пароль или email** — привязка только по одноразовому коду
-- Все запросы между ботом и сайтом авторизуются общим секретом в header — бот не может представляться сайтом наоборот
-- Покупка Robux **не происходит внутри бота** — пользователь оформляет заказ на сайте (там есть полная UX с проверкой геймпасса, резервированием, captcha и т.д.). Бот только показывает котировку и отправляет на сайт.
-- Админ-команды доступны только если: (а) Telegram ID есть в `ADMIN_TG_IDS`, **или** (б) привязанный сайт-аккаунт имеет `is_admin=1`
+- Бот **не запрашивает пароль/email** — привязка только по одноразовому коду
+- Все вызовы `bot ↔ site` авторизуются общим секретом в HTTP-header
+- **Покупка Robux не происходит внутри бота** — пользователь видит расчёт цены и кнопку «Оформить на сайте». Сделано специально, чтобы не дублировать сложную логику резервирования + checkpoint геймпасса
+- Админ-команды защищены двумя проверками: `ADMIN_TG_IDS` env var **или** `is_admin=1` в привязанном аккаунте
 
-## Структура проекта
+## Структура
 
 ```
 bot/
-├── bot.py              # main entry point
-├── config.py           # env loading + constants
-├── api.py              # async HTTP client to /api/bot/*
-├── utils.py            # formatting helpers (esc, fmt_rub, fmt_relative, ...)
-├── keyboards.py        # all inline keyboards
+├── bot.py              # main entry
+├── config.py           # env + константы (BOT_NAME, ROBUX_PRESETS)
+├── api.py              # async HTTP-клиент к /api/bot/*
+├── utils.py            # esc, fmt_rub, fmt_robux, status_label, fmt_relative
+├── keyboards.py        # все inline-клавиатуры с фирменными иконками
 ├── handlers/
-│   ├── __init__.py
-│   ├── start.py        # /start, /menu, /help
-│   ├── link.py         # /link, /unlink, deep-link binding
+│   ├── start.py        # /start, /menu, /help + deep-link
+│   ├── link.py         # /link, /unlink, инструкция
 │   ├── profile.py      # /profile, /balance
-│   ├── robux.py        # /buy, /robux + FSM for custom amount
-│   ├── orders.py       # /orders + tabs (Robux / Shop)
-│   ├── shop.py         # /shop catalog browsing
-│   └── admin.py        # /admin + admin actions (FSM for user search)
+│   ├── robux.py        # /buy, /robux + FSM для своей суммы
+│   ├── orders.py       # /orders
+│   └── admin.py        # /admin
 ├── requirements.txt
 ├── Dockerfile
 ├── .env.example
 └── README.md
 ```
 
-## Логи
+## Будущий бот (для аккаунтов и других товаров)
 
-Бот пишет в stdout. Уровень регулируется переменной `LOG_LEVEL` (`DEBUG`/`INFO`/`WARNING`/`ERROR`).
-
-## Команды
-
-| Команда            | Описание                              |
-|--------------------|---------------------------------------|
-| `/start`           | Главное меню                          |
-| `/menu`            | Главное меню                          |
-| `/profile`         | Профиль и баланс                      |
-| `/balance`         | Быстрая проверка баланса              |
-| `/buy` или `/robux`| Покупка Robux                         |
-| `/orders`          | Свои заказы (Robux + магазин)         |
-| `/shop`            | Каталог магазина                      |
-| `/link <код>`      | Привязка аккаунта сайта               |
-| `/unlink`          | Отвязка                               |
-| `/admin`           | Админ-панель (только админам)         |
-| `/help`            | Справка по командам                   |
+Этот бот специально сосредоточен на Robux. Когда будет готов второй бот для каталога аккаунтов / Game Pass / премиума — он будет **отдельным процессом** (свой `BOT_TOKEN`, свой Railway-сервис), но **тот же `SITE_API_SECRET`** и тот же сайт. Пользователь сможет привязать **оба бота** к одному аккаунту сайта.
 
 ## Troubleshooting
 
-**Бот запустился, но команды не работают, в логах `403 Forbidden`:**
-- `SITE_API_SECRET` в `.env` не совпадает с `BOT_API_SECRET` на сайте → совпасти их
+**Бот запускается, но выдаёт «Бот не настроен» при /link:**
+- `SITE_API_SECRET` в боте ≠ `BOT_API_SECRET` на сайте → сделай совпасти буква-в-букву
+- Открой в браузере `https://твой-сайт/api/bot/diag` — увидишь длину секрета на сайте
+- Открой `https://твой-сайт/api/bot/diag?secret=ТВОЕ_ЗНАЧЕНИЕ` — увидишь `provided_matches: true/false`
 
-**Команды не отображаются в списке:**
-- Telegram кэширует список команд ~1 минуту, перезайди в чат с ботом
+**Команды не отображаются в Telegram:**
+- Telegram кэширует список команд ~1-2 минуты
+- Перезайди в чат с ботом или попробуй другой клиент
 
 **`/link 123456` выдаёт «Код не принят»:**
 - Код одноразовый и живёт 10 минут — сгенерируй новый на сайте
-- Цифры могут быть с пробелами/тире — бот их вычистит, но проверь что прислал именно сайт-код, а не TG-ID или что-то ещё
-
-**Изменения в коде не применяются:**
-- Перезапусти процесс бота (он не hot-reload). На Railway/Docker — рестарт сервиса.
+- Цифры могут быть с пробелами/тире — бот их вычистит, но проверь что ты прислал именно сайт-код а не TG-ID

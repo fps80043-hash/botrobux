@@ -8,52 +8,67 @@ from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, Message
 
 from api import ApiError, api
-from config import ADMIN_TG_IDS, BOT_NAME
+from config import ADMIN_TG_IDS, BOT_NAME, BOT_TAGLINE
 from keyboards import link_prompt_kb, main_menu_kb
-from utils import esc
+from utils import esc, fmt_relative, fmt_rub, is_premium_active
 
 router = Router(name="start")
 log = logging.getLogger(__name__)
 
 
-WELCOME_LINKED = (
-    "👋 <b>Привет, {username}!</b>\n\n"
-    "Это <b>{bot}</b> — здесь ты можешь:\n\n"
-    "💎 Покупать Robux по нику или ссылке\n"
-    "🛒 Смотреть каталог магазина\n"
-    "👤 Управлять профилем и балансом\n"
-    "📦 Отслеживать свои заказы\n\n"
-    "<b>Баланс:</b> {balance}"
+WELCOME_LINKED_TEMPLATE = (
+    "💎  <b>{bot}</b>\n"
+    "<i>{tagline}</i>\n"
+    "{rule}\n\n"
+    "Привет, <b>{username}</b>! {badges}\n\n"
+    "💰  Баланс:  <b>{balance}</b>\n"
+    "🆔  ID:  <code>#{uid}</code>"
+    "{premium_line}"
+    "\n\n"
+    "{rule}\n"
+    "Выбери что делать ↓"
 )
 
 WELCOME_NEW = (
-    "👋 <b>Добро пожаловать в {bot}!</b>\n\n"
-    "Чтобы начать пользоваться, нужно <b>привязать аккаунт сайта</b>:\n\n"
-    "<b>1.</b> Открой сайт и зайди в свой профиль\n"
-    "<b>2.</b> В разделе «Безопасность» нажми «Получить код привязки»\n"
-    "<b>3.</b> Отправь мне сюда:  <code>/link &lt;код&gt;</code>\n\n"
-    "Если у тебя ещё нет аккаунта — зарегистрируйся на сайте."
+    "💎  <b>{bot}</b>\n"
+    "<i>{tagline}</i>\n"
+    "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    "👋  Добро пожаловать!\n\n"
+    "Чтобы покупать Robux через бота, нужно <b>привязать аккаунт сайта</b> — "
+    "это занимает 30 секунд:\n\n"
+    "<b>1.</b>  Зайди на сайт и войди в аккаунт\n"
+    "<b>2.</b>  Профиль → <b>Безопасность</b> → блок Telegram-бот\n"
+    "<b>3.</b>  Нажми «Получить код привязки»\n"
+    "<b>4.</b>  Пришли мне:  <code>/link 123456</code>\n\n"
+    "Если у тебя ещё нет аккаунта — зарегистрируйся на сайте, это бесплатно."
 )
 
 HELP_TEXT = (
-    "❓ <b>Команды бота</b>\n\n"
-    "/start — главное меню\n"
-    "/menu — главное меню\n"
-    "/profile — твой профиль и баланс\n"
-    "/balance — быстрая проверка баланса\n"
-    "/buy — покупка Robux\n"
-    "/orders — твои заказы\n"
-    "/shop — каталог магазина\n"
+    "💎  <b>Команды бота</b>\n"
+    "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    "<b>Покупка Robux</b>\n"
+    "/buy  •  /robux — открыть калькулятор\n\n"
+    "<b>Аккаунт и баланс</b>\n"
+    "/profile — профиль\n"
+    "/balance — текущий баланс\n"
+    "/orders — мои заказы\n\n"
+    "<b>Привязка</b>\n"
     "/link &lt;код&gt; — привязать аккаунт сайта\n"
-    "/unlink — отвязать аккаунт\n"
+    "/unlink — отвязать\n\n"
+    "<b>Прочее</b>\n"
+    "/menu — главное меню\n"
     "/help — это сообщение\n\n"
-    "Все вопросы и проблемы — пиши в поддержку на сайте."
+    "<i>По любым вопросам — поддержка на сайте.</i>"
 )
 
 
-def _fmt_balance(amount: int) -> str:
-    s = f"{int(amount):,}".replace(",", " ")
-    return f"<b>{s} ₽</b>"
+def _badges(profile: dict) -> str:
+    out = []
+    if profile.get("is_admin"):
+        out.append("🛡 ADMIN")
+    if is_premium_active(profile.get("premium_until")):
+        out.append("⭐ PREMIUM")
+    return "  ".join(out)
 
 
 @router.message(CommandStart(deep_link=True))
@@ -66,7 +81,6 @@ async def start_with_deeplink(msg: Message, command):
             from .link import perform_link
             await perform_link(msg, code)
             return
-    # Fallback to normal start
     await cmd_start(msg)
 
 
@@ -82,7 +96,7 @@ async def cmd_start(msg: Message):
 
     if not link:
         await msg.answer(
-            WELCOME_NEW.format(bot=BOT_NAME),
+            WELCOME_NEW.format(bot=BOT_NAME, tagline=BOT_TAGLINE),
             reply_markup=link_prompt_kb(),
             parse_mode="HTML",
         )
@@ -98,13 +112,35 @@ async def cmd_start(msg: Message):
         )
         return
 
+    text = _format_main_menu(profile)
     is_admin = bool(profile.get("is_admin")) or tg_id in ADMIN_TG_IDS
-    text = WELCOME_LINKED.format(
-        username=esc(profile.get("username") or "друг"),
-        bot=BOT_NAME,
-        balance=_fmt_balance(profile.get("balance") or 0),
+    await msg.answer(
+        text,
+        reply_markup=main_menu_kb(is_admin=is_admin, balance=profile.get("balance")),
+        parse_mode="HTML",
     )
-    await msg.answer(text, reply_markup=main_menu_kb(is_admin=is_admin), parse_mode="HTML")
+
+
+def _format_main_menu(profile: dict) -> str:
+    badges = _badges(profile)
+    is_prem = is_premium_active(profile.get("premium_until"))
+    premium_line = ""
+    if is_prem:
+        from utils import parse_iso
+        until = parse_iso(profile.get("premium_until"))
+        if until:
+            premium_line = f"\n⭐  Premium до:  <b>{until.strftime('%d.%m.%Y')}</b>"
+    rule = "━━━━━━━━━━━━━━━━━━━━━━"
+    return WELCOME_LINKED_TEMPLATE.format(
+        bot=BOT_NAME,
+        tagline=BOT_TAGLINE,
+        rule=rule,
+        username=esc(profile.get("username") or "друг"),
+        badges=badges or "",
+        balance=fmt_rub(profile.get("balance") or 0),
+        uid=int(profile.get("id") or 0),
+        premium_line=premium_line,
+    )
 
 
 @router.message(Command("help"))
@@ -122,11 +158,18 @@ async def cb_main_menu(cb: CallbackQuery):
         link = None
 
     if not link:
-        await cb.message.edit_text(
-            WELCOME_NEW.format(bot=BOT_NAME),
-            reply_markup=link_prompt_kb(),
-            parse_mode="HTML",
-        )
+        try:
+            await cb.message.edit_text(
+                WELCOME_NEW.format(bot=BOT_NAME, tagline=BOT_TAGLINE),
+                reply_markup=link_prompt_kb(),
+                parse_mode="HTML",
+            )
+        except Exception:
+            await cb.message.answer(
+                WELCOME_NEW.format(bot=BOT_NAME, tagline=BOT_TAGLINE),
+                reply_markup=link_prompt_kb(),
+                parse_mode="HTML",
+            )
         await cb.answer()
         return
 
@@ -137,19 +180,27 @@ async def cb_main_menu(cb: CallbackQuery):
         return
 
     is_admin = bool(profile.get("is_admin")) or tg_id in ADMIN_TG_IDS
-    text = WELCOME_LINKED.format(
-        username=esc(profile.get("username") or "друг"),
-        bot=BOT_NAME,
-        balance=_fmt_balance(profile.get("balance") or 0),
-    )
+    text = _format_main_menu(profile)
     try:
-        await cb.message.edit_text(text, reply_markup=main_menu_kb(is_admin=is_admin), parse_mode="HTML")
+        await cb.message.edit_text(
+            text,
+            reply_markup=main_menu_kb(is_admin=is_admin, balance=profile.get("balance")),
+            parse_mode="HTML",
+        )
     except Exception:
-        await cb.message.answer(text, reply_markup=main_menu_kb(is_admin=is_admin), parse_mode="HTML")
+        await cb.message.answer(
+            text,
+            reply_markup=main_menu_kb(is_admin=is_admin, balance=profile.get("balance")),
+            parse_mode="HTML",
+        )
     await cb.answer()
 
 
 @router.callback_query(F.data == "help:show")
 async def cb_help(cb: CallbackQuery):
-    await cb.message.answer(HELP_TEXT, parse_mode="HTML")
+    from keyboards import back_to_menu_kb
+    try:
+        await cb.message.edit_text(HELP_TEXT, reply_markup=back_to_menu_kb(), parse_mode="HTML")
+    except Exception:
+        await cb.message.answer(HELP_TEXT, reply_markup=back_to_menu_kb(), parse_mode="HTML")
     await cb.answer()

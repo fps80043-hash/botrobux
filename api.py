@@ -88,6 +88,10 @@ class SiteApi:
     async def health(self) -> Dict[str, Any]:
         return await self._request("GET", "/api/bot/health")
 
+    async def diag(self) -> Dict[str, Any]:
+        """Public diagnostic — works even if secret is wrong, used at startup."""
+        return await self._request("GET", "/api/bot/diag")
+
     async def get_link(self, telegram_id: int) -> Optional[Dict[str, Any]]:
         try:
             data = await self._request("GET", "/api/bot/telegram/link", params={"telegram_id": telegram_id})

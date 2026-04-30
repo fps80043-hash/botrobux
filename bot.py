@@ -21,22 +21,21 @@ from aiogram.types import BotCommand, BotCommandScopeDefault
 
 from api import ApiError, api
 from config import BOT_TOKEN, BOT_NAME, setup_logging
-from handlers import admin, link, orders, profile, robux, shop, start
+from handlers import admin, link, orders, profile, robux, start
 
 log = logging.getLogger("bot")
 
 
 BOT_COMMANDS = [
-    BotCommand(command="start", description="Главное меню"),
-    BotCommand(command="menu", description="Главное меню"),
-    BotCommand(command="profile", description="Мой профиль"),
-    BotCommand(command="balance", description="Баланс"),
-    BotCommand(command="buy", description="Купить Robux"),
-    BotCommand(command="orders", description="Мои заказы"),
-    BotCommand(command="shop", description="Каталог магазина"),
-    BotCommand(command="link", description="Привязать аккаунт сайта"),
-    BotCommand(command="unlink", description="Отвязать аккаунт"),
-    BotCommand(command="help", description="Помощь"),
+    BotCommand(command="start", description="🏠 Главное меню"),
+    BotCommand(command="menu", description="🏠 Главное меню"),
+    BotCommand(command="buy", description="💎 Купить Robux"),
+    BotCommand(command="balance", description="💰 Баланс"),
+    BotCommand(command="profile", description="👤 Профиль"),
+    BotCommand(command="orders", description="📋 Мои заказы"),
+    BotCommand(command="link", description="🔗 Привязать аккаунт"),
+    BotCommand(command="unlink", description="🔓 Отвязать"),
+    BotCommand(command="help", description="❓ Помощь"),
 ]
 
 
@@ -49,10 +48,25 @@ async def _on_startup(bot: Bot) -> None:
         log.info("Bot commands registered (%d)", len(BOT_COMMANDS))
     except Exception as e:
         log.warning("Failed to register commands: %s", e)
-    # Quick health-check against the site
+    # Quick health-check against the site + secret diagnostics
     try:
-        h = await api.health()
-        log.info("Site reachable, build=%s", h.get("build"))
+        diag = await api.diag()
+        if not diag.get("secret_configured"):
+            log.error(
+                "❌ Site has BOT_API_SECRET NOT SET. "
+                "Set it on Railway → Variables and redeploy the site."
+            )
+        elif not diag.get("provided_matches"):
+            log.error(
+                "❌ Secret MISMATCH: site has %d chars, bot sent %d chars, but values differ.\n"
+                "   Bot's SITE_API_SECRET must EXACTLY equal site's BOT_API_SECRET.\n"
+                "   Check for trailing spaces, missing chars, or quotes around the value.",
+                int(diag.get("secret_length") or 0),
+                int(diag.get("provided_length") or 0),
+            )
+        else:
+            h = await api.health()
+            log.info("✅ Site reachable AND secrets match. build=%s", h.get("build"))
     except ApiError as e:
         log.error(
             "Cannot reach site at startup: %s.\n"
@@ -83,7 +97,6 @@ async def main() -> None:
     dp.include_router(profile.router)
     dp.include_router(robux.router)
     dp.include_router(orders.router)
-    dp.include_router(shop.router)
     dp.include_router(admin.router)
 
     dp.startup.register(_on_startup)

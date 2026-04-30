@@ -14,6 +14,8 @@ from utils import esc, fmt_rub, is_premium_active, parse_iso
 router = Router(name="profile")
 log = logging.getLogger(__name__)
 
+RULE = "━━━━━━━━━━━━━━━━━━━━━━"
+
 
 def _profile_text(profile: dict, link: dict | None) -> str:
     username = profile.get("username") or "—"
@@ -22,29 +24,49 @@ def _profile_text(profile: dict, link: dict | None) -> str:
     is_admin = bool(profile.get("is_admin"))
     prem = is_premium_active(profile.get("premium_until"))
 
-    lines = [
-        f"👤 <b>{esc(username)}</b>",
-    ]
     badges = []
     if is_admin:
         badges.append("🛡 ADMIN")
     if prem:
         badges.append("⭐ PREMIUM")
-    if badges:
-        lines.append("   " + "  ".join(badges))
+    badge_line = "  ".join(badges)
+
+    lines = [
+        f"👤  <b>{esc(username)}</b>",
+    ]
+    if badge_line:
+        lines.append(f"   {badge_line}")
+    lines.append(RULE)
     lines.append("")
-    lines.append(f"<b>Баланс:</b>  {fmt_rub(balance)}")
-    lines.append(f"<b>ID:</b>  <code>#{int(profile.get('id') or 0)}</code>")
+    lines.append(f"💰  <b>Баланс</b>")
+    lines.append(f"        {fmt_rub(balance)}")
+    lines.append("")
+    lines.append(f"🆔  <b>ID на сайте</b>")
+    lines.append(f"        <code>#{int(profile.get('id') or 0)}</code>")
+
     if email:
-        lines.append(f"<b>Email:</b>  <code>{esc(email)}</code>")
+        lines.append("")
+        lines.append(f"📧  <b>Email</b>")
+        lines.append(f"        <code>{esc(email)}</code>")
+
     if prem:
         until = parse_iso(profile.get("premium_until"))
         if until:
-            lines.append(f"<b>Premium до:</b>  {until.strftime('%d.%m.%Y')}")
+            lines.append("")
+            lines.append(f"⭐  <b>Premium до</b>")
+            lines.append(f"        {until.strftime('%d.%m.%Y')}")
+
     if link:
         tg_un = link.get("telegram_username")
+        linked_at = link.get("created_at")
+        lines.append("")
+        lines.append(f"📱  <b>Telegram</b>")
         if tg_un:
-            lines.append(f"<b>Telegram:</b>  @{esc(tg_un)}")
+            lines.append(f"        @{esc(tg_un)}")
+        if linked_at:
+            from utils import fmt_relative
+            lines.append(f"        привязан {fmt_relative(linked_at)}")
+
     return "\n".join(lines)
 
 
@@ -60,10 +82,11 @@ async def _show_profile(target: Message | CallbackQuery) -> None:
 
     if not link:
         text = (
-            "👤 <b>Профиль</b>\n\n"
-            "У тебя ещё нет привязанного аккаунта сайта.\n"
-            "Нажми «Привязать аккаунт», чтобы видеть здесь баланс, "
-            "заказы и историю покупок."
+            "👤  <b>Профиль</b>\n"
+            f"{RULE}\n\n"
+            "У тебя ещё нет привязанного аккаунта сайта.\n\n"
+            "Нажми «Привязать аккаунт» чтобы видеть здесь баланс, "
+            "историю заказов и покупать Robux."
         )
         if isinstance(target, CallbackQuery):
             try:
@@ -105,7 +128,7 @@ async def cmd_balance(msg: Message):
         return
     if not link:
         await msg.answer(
-            "Сначала привяжи аккаунт сайта: /link &lt;код&gt;",
+            "Сначала привяжи аккаунт сайта: <code>/link &lt;код&gt;</code>",
             parse_mode="HTML", reply_markup=link_prompt_kb(),
         )
         return
@@ -114,7 +137,12 @@ async def cmd_balance(msg: Message):
     except ApiError as e:
         await msg.answer(f"⚠️ Ошибка: {esc(e)}", parse_mode="HTML")
         return
-    await msg.answer(f"💰 <b>Баланс:</b> {fmt_rub(balance)}", parse_mode="HTML")
+    await msg.answer(
+        f"💰  <b>Твой баланс</b>\n"
+        f"{RULE}\n\n"
+        f"        <b>{fmt_rub(balance)}</b>",
+        parse_mode="HTML",
+    )
 
 
 @router.callback_query(F.data == "profile:show")
@@ -131,14 +159,15 @@ async def cb_balance(cb: CallbackQuery):
     except ApiError as e:
         await cb.answer(f"Ошибка: {e}", show_alert=True)
         return
-    await cb.answer(f"💰 Баланс: {fmt_rub(balance)}", show_alert=True)
+    await cb.answer(f"💰  Баланс: {fmt_rub(balance)}", show_alert=True)
 
 
 @router.callback_query(F.data == "profile:unlink")
 async def cb_unlink_ask(cb: CallbackQuery):
     text = (
-        "🔓 <b>Отвязать аккаунт?</b>\n\n"
-        "После отвязки бот перестанет показывать твой баланс и заказы.\n"
+        "🔓  <b>Отвязать аккаунт?</b>\n"
+        f"{RULE}\n\n"
+        "После отвязки бот перестанет показывать твой баланс и заказы.\n\n"
         "Данные на сайте сохранятся — это просто разрыв связи Telegram ↔ сайт.\n\n"
         "Чтобы привязать снова — получи новый код на сайте."
     )
@@ -158,7 +187,8 @@ async def cb_unlink_yes(cb: CallbackQuery):
         await cb.answer(f"Ошибка: {e}", show_alert=True)
         return
     await cb.message.edit_text(
-        "✅ Аккаунт отвязан.\n\nЕсли захочешь привязать снова — пришли /link с новым кодом.",
+        "✅  <b>Аккаунт отвязан</b>\n\n"
+        "Если захочешь привязать снова — получи код на сайте и пришли <code>/link 123456</code>.",
         reply_markup=link_prompt_kb(), parse_mode="HTML",
     )
     await cb.answer("Отвязано")

@@ -15,19 +15,22 @@ from utils import esc, fmt_rub
 router = Router(name="link")
 log = logging.getLogger(__name__)
 
+RULE = "━━━━━━━━━━━━━━━━━━━━━━"
+
 
 HOW_TO_LINK = (
-    "🔗 <b>Как привязать аккаунт</b>\n\n"
-    "Привязка нужна чтобы бот знал кто ты на сайте — иначе мы не сможем "
-    "показать твой баланс, заказы и историю.\n\n"
+    f"🔗  <b>Как привязать аккаунт</b>\n"
+    f"{RULE}\n\n"
+    "Привязка нужна чтобы бот видел твой профиль на сайте — без неё мы не сможем "
+    "показать баланс, оформить заказ и вести историю.\n\n"
     "<b>Шаги:</b>\n\n"
     "1️⃣  Открой <a href='{site}'>сайт</a> и войди в свой аккаунт\n"
-    "2️⃣  Нажми на свой профиль → <b>Безопасность</b>\n"
-    "3️⃣  В блоке <b>Telegram-бот</b> нажми «Получить код»\n"
+    "2️⃣  Нажми на свой профиль вверху → вкладка <b>Безопасность</b>\n"
+    "3️⃣  В блоке <b>Telegram-бот</b> нажми «Получить код привязки»\n"
     "4️⃣  Скопируй 6-значный код и пришли мне:\n"
     "        <code>/link 123456</code>\n\n"
-    "Код действует <b>10 минут</b>. Если не успел — сгенерируй новый.\n\n"
-    "Если у тебя ещё нет аккаунта — зарегистрируйся на сайте."
+    "⏱  Код действует <b>10 минут</b>. Если не успел — сгенерируй новый.\n\n"
+    "<i>Если у тебя ещё нет аккаунта — зарегистрируйся на сайте, это бесплатно.</i>"
 ).format(site=SITE_URL)
 
 
@@ -36,7 +39,7 @@ async def perform_link(msg: Message, code: str) -> None:
     code = (code or "").strip().replace(" ", "").replace("-", "")
     if not code or not code.isdigit() or len(code) != 6:
         await msg.answer(
-            "❌ Код должен состоять из 6 цифр.\n\n"
+            "❌  <b>Код должен состоять из 6 цифр</b>\n\n"
             "Получи свежий код на сайте → Профиль → Безопасность → Telegram-бот.",
             parse_mode="HTML",
         )
@@ -52,8 +55,9 @@ async def perform_link(msg: Message, code: str) -> None:
         existing = None
     if existing:
         await msg.answer(
-            "⚠️ Этот Telegram уже привязан к аккаунту.\n"
-            "Чтобы перепривязать к другому — сначала отправь /unlink.",
+            "⚠️  <b>Этот Telegram уже привязан</b>\n\n"
+            "Чтобы перепривязать к другому аккаунту — сначала отправь /unlink, "
+            "затем сгенерируй новый код для нового аккаунта.",
             parse_mode="HTML",
         )
         return
@@ -63,11 +67,27 @@ async def perform_link(msg: Message, code: str) -> None:
     except ApiError as e:
         if e.status == 400:
             await msg.answer(
-                "❌ <b>Код не принят</b>\n\n"
+                "❌  <b>Код не принят</b>\n\n"
                 "Возможные причины:\n"
-                "• Код уже использован или истёк (10 мин)\n"
-                "• Опечатка в цифрах\n\n"
+                "•  Код уже использован или истёк (10 мин)\n"
+                "•  Опечатка в цифрах\n\n"
                 "Сгенерируй новый код на сайте: Профиль → Безопасность → Telegram-бот.",
+                parse_mode="HTML",
+            )
+        elif e.status == 403:
+            await msg.answer(
+                "🔧  <b>Бот не настроен</b>\n\n"
+                "Секрет в боте (<code>SITE_API_SECRET</code>) не совпадает с тем что на сайте "
+                "(<code>BOT_API_SECRET</code>).\n\n"
+                "Проверь обе переменные окружения и убедись что значения буква-в-букву совпадают.\n\n"
+                "<i>Это сообщение видит только тот кто пытается привязаться. Напиши админу.</i>",
+                parse_mode="HTML",
+            )
+        elif e.status == 503:
+            await msg.answer(
+                "🔧  <b>Сайт не настроен</b>\n\n"
+                "На сайте не задана переменная окружения <code>BOT_API_SECRET</code>.\n\n"
+                "<i>Напиши админу.</i>",
                 parse_mode="HTML",
             )
         else:
@@ -77,10 +97,12 @@ async def perform_link(msg: Message, code: str) -> None:
     username = result.get("username") or "друг"
     balance = int(result.get("balance") or 0)
     success_text = (
-        f"✅ <b>Аккаунт привязан!</b>\n\n"
-        f"Привет, <b>{esc(username)}</b> 👋\n"
-        f"Твой баланс: <b>{fmt_rub(balance)}</b>\n\n"
-        f"Теперь можешь пользоваться всеми функциями бота. Нажми /menu чтобы открыть меню."
+        f"✅  <b>Аккаунт привязан!</b>\n"
+        f"{RULE}\n\n"
+        f"Привет, <b>{esc(username)}</b>!  👋\n\n"
+        f"💰  Баланс:  <b>{fmt_rub(balance)}</b>\n\n"
+        f"Теперь можешь покупать Robux через бота.\n"
+        f"Жми /menu чтобы открыть меню или сразу /buy для покупки."
     )
     await msg.answer(success_text, reply_markup=main_menu_kb(), parse_mode="HTML")
 
@@ -91,7 +113,7 @@ async def cmd_link(msg: Message, command):
     if not code:
         await msg.answer(
             "Используй: <code>/link 123456</code>\n\n"
-            "Где взять код — нажми «Как привязать?» в /menu.",
+            "Где взять код — нажми «Как привязать?» ниже.",
             parse_mode="HTML",
             reply_markup=link_prompt_kb(),
         )
@@ -116,7 +138,8 @@ async def cmd_unlink(msg: Message):
         await msg.answer(f"⚠️ Ошибка: <i>{esc(e)}</i>", parse_mode="HTML")
         return
     await msg.answer(
-        "✅ Аккаунт отвязан. Чтобы привязать другой — пришли /link с новым кодом.",
+        "✅  <b>Аккаунт отвязан</b>\n\n"
+        "Чтобы привязать снова — пришли <code>/link &lt;новый_код&gt;</code>.",
         reply_markup=link_prompt_kb(),
         parse_mode="HTML",
     )
