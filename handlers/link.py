@@ -94,6 +94,13 @@ async def perform_link(msg: Message, code: str) -> None:
             await msg.answer(f"⚠️ Ошибка при привязке: <i>{esc(e)}</i>", parse_mode="HTML")
         return
 
+    # Let the gate recognise the freshly-linked user immediately.
+    try:
+        from middlewares import mark_linked
+        mark_linked(tg_id)
+    except Exception:
+        pass
+
     username = result.get("username") or "друг"
     balance = int(result.get("balance") or 0)
     success_text = (
@@ -137,6 +144,11 @@ async def cmd_unlink(msg: Message):
     except ApiError as e:
         await msg.answer(f"⚠️ Ошибка: <i>{esc(e)}</i>", parse_mode="HTML")
         return
+    try:
+        from middlewares import invalidate_link
+        invalidate_link(tg_id)
+    except Exception:
+        pass
     await msg.answer(
         "✅  <b>Аккаунт отвязан</b>\n\n"
         "Чтобы привязать снова — пришли <code>/link &lt;новый_код&gt;</code>.",

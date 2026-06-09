@@ -9,10 +9,13 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
 from api import ApiError, api
 from config import ADMIN_TG_IDS, SITE_URL
 from keyboards import admin_menu_kb, back_to_menu_kb
-from utils import esc, fmt_relative, fmt_rub, status_label
+from premoji import pe
+from utils import bar, esc, fmt_relative, fmt_rub, is_premium_active, status_label, typing
 
 router = Router(name="admin")
 log = logging.getLogger(__name__)
@@ -42,13 +45,53 @@ async def _deny(target: Message | CallbackQuery) -> None:
 
 def _admin_intro() -> str:
     return (
-        "🛠 <b>Админ-панель</b>\n\n"
-        "Доступные действия:\n"
-        "• <b>Последние заказы</b> — свежие Robux-заказы\n"
-        "• <b>Найти юзера</b> — поиск по нику или email\n"
-        "• <b>Robux настройки</b> — текущий курс и наличие\n\n"
-        "Для управления магазином, банами, выплатами — открой сайт."
+        f"{pe('settings')} <b>Админ-панель</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{pe('stats')} <b>Свежие заказы</b> — последние Robux-заказы\n"
+        f"{pe('people')} <b>Найти юзера</b> — по нику, email или ID\n"
+        f"{pe('money')} <b>Robux настройки</b> — курс и наличие\n\n"
+        f"{pe('info')} <i>Магазин, баны, выплаты — на сайте.</i>"
     )
+
+
+def _user_card(u: dict) -> str:
+    """Detailed user card (premium-emoji formatted)."""
+    uid = int(u.get("id") or 0)
+    username = esc(u.get("username") or "—")
+    email = esc(u.get("email") or "—")
+    balance = int(u.get("balance") or 0)
+    is_admin = bool(u.get("is_admin"))
+    prem = is_premium_active(u.get("premium_until"))
+    badges = []
+    if is_admin:
+        badges.append(f"{pe('check')} ADMIN")
+    if prem:
+        badges.append(f"{pe('gift')} PREMIUM")
+    badge_line = ("  ".join(badges) + "\n") if badges else ""
+    lines = [
+        f"{pe('profile')} <b>{username}</b>   <code>#{uid}</code>",
+        "━━━━━━━━━━━━━━━━━━━━━━",
+        badge_line.rstrip("\n") if badge_line else "",
+        f"{pe('clip')} Email: <code>{email}</code>",
+        f"{pe('money')} Баланс: <b>{fmt_rub(balance)}</b>",
+    ]
+    created = u.get("created_at")
+    if created:
+        lines.append(f"{pe('calendar')} Регистрация: {esc(fmt_relative(created))}")
+    tg = u.get("telegram_id") or u.get("tg_id")
+    if tg:
+        lines.append(f"{pe('bot')} Telegram: <code>{esc(tg)}</code>")
+    return "\n".join([l for l in lines if l != ""])
+
+
+def _user_card_kb(uid: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🌐 Открыть на сайте", url=f"{SITE_URL}/v2")],
+        [
+            InlineKeyboardButton(text="🔍 Новый поиск", callback_data="admin:find_user"),
+            InlineKeyboardButton(text="← Админка", callback_data="admin:menu"),
+        ],
+    ])
 
 
 @router.message(Command("admin"))
@@ -84,9 +127,9 @@ async def cb_admin_orders(cb: CallbackQuery):
         return
     items = data.get("orders") or data.get("items") or []
     if not items:
-        text = "📊 <b>Последние заказы</b>\n\n<i>Заказов пока нет.</i>"
+        text = f"{pe('stats')} <b>Последние заказы</b>\n\n<i>Заказов пока нет.</i>"
     else:
-        lines = ["📊 <b>Последние Robux-заказы</b>", ""]
+        lines = [f"{pe('stats')} <b>Последние Robux-заказы</b>", "━━━━━━━━━━━━━━━━━━━━━━", ""]
         for o in items[:15]:
             oid = int(o.get("id") or 0)
             user = esc(o.get("username") or f"#{o.get('user_id') or '?'}")
@@ -115,9 +158,11 @@ async def cb_admin_find_user(cb: CallbackQuery, state: FSMContext):
         return
     await state.set_state(AdminStates.finding_user)
     text = (
-        "🔍 <b>Поиск пользователя</b>\n\n"
-        "Отправь ник, email или ID одним сообщением.\n\n"
-        "Чтобы отменить — нажми /menu или кнопку ниже."
+        f"{pe('people')} <b>Поиск пользователя</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{pe('write')} Отправь одним сообщением:\n"
+        "• ник  •  email  •  ID  (#123 или 123)\n\n"
+        f"{pe('info')} <i>Отмена — /menu или кнопка ниже.</i>"
     )
     try:
         await cb.message.edit_text(text, reply_markup=back_to_menu_kb(), parse_mode="HTML")
@@ -132,39 +177,76 @@ async def msg_admin_find_user(msg: Message, state: FSMContext):
         await state.clear()
         await _deny(msg)
         return
-    query = (msg.text or "").strip()
+    query = (msg.text or "").strip().lstrip("#")
     if not query:
         await msg.answer("Пустой запрос, попробуй ещё раз.")
         return
     await state.clear()
+    await typing(msg)
     try:
         data = await api.admin_users_find(msg.from_user.id, query)
     except ApiError as e:
-        await msg.answer(f"⚠️ Ошибка: <i>{esc(e)}</i>", parse_mode="HTML")
+        await msg.answer(f"{pe('cross')} Ошибка: <i>{esc(e)}</i>", parse_mode="HTML")
         return
     users = data.get("users") or data.get("items") or []
     if not users:
         await msg.answer(
-            f"🔍 По запросу <b>{esc(query)}</b> ничего не найдено.",
-            reply_markup=admin_menu_kb(), parse_mode="HTML",
+            f"{pe('people')} По запросу <b>{esc(query)}</b> ничего не найдено.\n"
+            f"<i>Проверь написание или попробуй email/ID.</i>",
+            reply_markup=back_to_menu_kb(), parse_mode="HTML",
         )
         return
-    lines = [f"🔍 <b>Найдено: {len(users)}</b>", ""]
-    for u in users[:10]:
+
+    # Single exact hit → straight to the detailed card.
+    if len(users) == 1:
+        u = users[0]
+        await msg.answer(_user_card(u), reply_markup=_user_card_kb(int(u.get("id") or 0)), parse_mode="HTML")
+        return
+
+    # Multiple → compact list + a button per user that opens the full card.
+    lines = [f"{pe('people')} <b>Найдено: {len(users)}</b>", "━━━━━━━━━━━━━━━━━━━━━━", ""]
+    rows = []
+    for u in users[:8]:
         uid = int(u.get("id") or 0)
         username = esc(u.get("username") or "—")
-        email = esc(u.get("email") or "—")
         balance = int(u.get("balance") or 0)
-        is_admin = bool(u.get("is_admin"))
-        badges = " 🛡" if is_admin else ""
-        lines.append(
-            f"<b>#{uid}</b>  ·  <b>{username}</b>{badges}\n"
-            f"   {email}  ·  {fmt_rub(balance)}"
-        )
-    if len(users) > 10:
+        adm = f"  {pe('check')}" if u.get("is_admin") else ""
+        lines.append(f"<code>#{uid}</code>  <b>{username}</b>{adm}  ·  {fmt_rub(balance)}")
+        rows.append([InlineKeyboardButton(
+            text=f"👤 {u.get('username') or ('#'+str(uid))}", callback_data=f"admin:u:{uid}")])
+    if len(users) > 8:
         lines.append("")
-        lines.append(f"<i>… ещё {len(users) - 10}. Уточни запрос.</i>")
-    await msg.answer("\n".join(lines), reply_markup=admin_menu_kb(), parse_mode="HTML")
+        lines.append(f"<i>… ещё {len(users) - 8}. Уточни запрос.</i>")
+    rows.append([InlineKeyboardButton(text="← Админка", callback_data="admin:menu")])
+    await msg.answer("\n".join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=rows), parse_mode="HTML")
+
+
+@router.callback_query(F.data.startswith("admin:u:"))
+async def cb_admin_user_detail(cb: CallbackQuery):
+    if not await _is_admin(cb.from_user.id):
+        await _deny(cb)
+        return
+    try:
+        uid = int(cb.data.split(":")[2])
+    except (ValueError, IndexError):
+        await cb.answer("Неверный ID", show_alert=True)
+        return
+    await typing(cb)
+    try:
+        data = await api.admin_users_find(cb.from_user.id, str(uid))
+    except ApiError as e:
+        await cb.answer(f"Ошибка: {e}", show_alert=True)
+        return
+    users = data.get("users") or data.get("items") or []
+    u = next((x for x in users if int(x.get("id") or 0) == uid), users[0] if users else None)
+    if not u:
+        await cb.answer("Пользователь не найден", show_alert=True)
+        return
+    try:
+        await cb.message.edit_text(_user_card(u), reply_markup=_user_card_kb(uid), parse_mode="HTML")
+    except Exception:
+        await cb.message.answer(_user_card(u), reply_markup=_user_card_kb(uid), parse_mode="HTML")
+    await cb.answer()
 
 
 @router.callback_query(F.data == "admin:robux_settings")
@@ -187,10 +269,11 @@ async def cb_admin_robux_settings(cb: CallbackQuery):
         except (TypeError, ValueError):
             rate_str = str(rate)
     text = (
-        "💎 <b>Robux настройки</b>\n\n"
-        f"<b>В наличии:</b> {avail:,} R$\n".replace(",", " ")
-        + (f"<b>Курс:</b> {rate_str}\n" if rate_str else "")
-        + f"\nДля изменения настроек — открой админ-панель на сайте: {SITE_URL}/v2"
+        f"{pe('money')} <b>Robux — настройки</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{pe('box')} <b>В наличии:</b> {avail:,} R$\n".replace(",", " ")
+        + (f"{pe('stats')} <b>Курс:</b> {rate_str}\n" if rate_str else "")
+        + f"\n{pe('info')} <i>Изменить — в админ-панели на сайте.</i>"
     )
     try:
         await cb.message.edit_text(text, reply_markup=admin_menu_kb(), parse_mode="HTML")

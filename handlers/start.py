@@ -11,63 +11,65 @@ from api import ApiError, api
 from config import ADMIN_TG_IDS, BOT_NAME, BOT_TAGLINE
 from keyboards import link_prompt_kb, main_menu_kb
 from utils import esc, fmt_relative, fmt_rub, is_premium_active, typing
+from premoji import pe
 
 router = Router(name="start")
 log = logging.getLogger(__name__)
 
+_RULE = "━━━━━━━━━━━━━━━━━━━━━━"
 
 WELCOME_LINKED_TEMPLATE = (
-    "💎  <b>{bot}</b>\n"
+    pe("money") + "  <b>{bot}</b>\n"
     "<i>{tagline}</i>\n"
     "{rule}\n\n"
-    "Привет, <b>{username}</b>! {badges}\n\n"
-    "💰  Баланс:  <b>{balance}</b>\n"
-    "🆔  ID:  <code>#{uid}</code>"
+    + pe("smile") + "  Привет, <b>{username}</b>! {badges}\n\n"
+    + pe("wallet") + "  Баланс:  <b>{balance}</b>\n"
+    + pe("tag") + "  ID:  <code>#{uid}</code>"
     "{premium_line}"
     "\n\n"
     "{rule}\n"
-    "Выбери что делать ↓"
+    "Выбери, что делать " + pe("down")
 )
 
 WELCOME_NEW = (
-    "💎  <b>{bot}</b>\n"
+    pe("money") + "  <b>{bot}</b>\n"
     "<i>{tagline}</i>\n"
-    "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    "👋  Добро пожаловать!\n\n"
+    + _RULE + "\n\n"
+    + pe("party") + "  <b>Добро пожаловать!</b>\n\n"
     "Чтобы покупать Robux через бота, нужно <b>привязать аккаунт сайта</b> — "
-    "это занимает 30 секунд:\n\n"
-    "<b>1.</b>  Зайди на сайт и войди в аккаунт\n"
+    "это обязательно и занимает 30 секунд:\n\n"
+    "<b>1.</b>  Зайди на сайт и войди / зарегистрируйся\n"
     "<b>2.</b>  Профиль → <b>Безопасность</b> → блок Telegram-бот\n"
     "<b>3.</b>  Нажми «Получить код привязки»\n"
     "<b>4.</b>  Пришли мне:  <code>/link 123456</code>\n\n"
-    "Если у тебя ещё нет аккаунта — зарегистрируйся на сайте, это бесплатно."
+    + pe("info") + "  <i>Аккаунта нет? Регистрация на сайте бесплатная.</i>"
 )
 
 HELP_TEXT = (
-    "💎  <b>Команды бота</b>\n"
-    "━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    "<b>Покупка Robux</b>\n"
-    "/buy  •  /robux — открыть калькулятор\n\n"
-    "<b>Аккаунт и баланс</b>\n"
+    pe("info") + "  <b>Команды бота</b>\n"
+    + _RULE + "\n\n"
+    + pe("money") + "  <b>Покупка Robux</b>\n"
+    "/buy · /robux — калькулятор\n\n"
+    + pe("profile") + "  <b>Аккаунт</b>\n"
     "/profile — профиль\n"
-    "/balance — текущий баланс\n"
+    "/balance — баланс\n"
     "/orders — мои заказы\n\n"
-    "<b>Привязка</b>\n"
-    "/link &lt;код&gt; — привязать аккаунт сайта\n"
+    + pe("link") + "  <b>Привязка</b>\n"
+    "/link &lt;код&gt; — привязать аккаунт\n"
     "/unlink — отвязать\n\n"
-    "<b>Прочее</b>\n"
+    + pe("home") + "  <b>Прочее</b>\n"
     "/menu — главное меню\n"
-    "/help — это сообщение\n\n"
-    "<i>По любым вопросам — поддержка на сайте.</i>"
+    "/help — эта справка\n\n"
+    "<i>Вопросы — поддержка на сайте.</i>"
 )
 
 
 def _badges(profile: dict) -> str:
     out = []
     if profile.get("is_admin"):
-        out.append("🛡 ADMIN")
+        out.append(f"{pe('check')} ADMIN")
     if is_premium_active(profile.get("premium_until")):
-        out.append("⭐ PREMIUM")
+        out.append(f"{pe('gift')} PREMIUM")
     return "  ".join(out)
 
 
@@ -130,7 +132,7 @@ def _format_main_menu(profile: dict) -> str:
         from utils import parse_iso
         until = parse_iso(profile.get("premium_until"))
         if until:
-            premium_line = f"\n⭐  Premium до:  <b>{until.strftime('%d.%m.%Y')}</b>"
+            premium_line = f"\n{pe('gift')}  Premium до:  <b>{until.strftime('%d.%m.%Y')}</b>"
     rule = "━━━━━━━━━━━━━━━━━━━━━━"
     return WELCOME_LINKED_TEMPLATE.format(
         bot=BOT_NAME,

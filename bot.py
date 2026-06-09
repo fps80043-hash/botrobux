@@ -22,6 +22,7 @@ from aiogram.types import BotCommand, BotCommandScopeDefault
 from api import ApiError, api
 from config import BOT_TOKEN, BOT_NAME, setup_logging
 from handlers import admin, link, orders, profile, robux, start
+from middlewares import LinkGate
 
 log = logging.getLogger("bot")
 
@@ -89,6 +90,11 @@ async def main() -> None:
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = Dispatcher(storage=MemoryStorage())
+
+    # Mandatory site-link gate — blocks everything except /start, /link, /help,
+    # /menu and link/help callbacks until the user links a site account.
+    dp.message.middleware(LinkGate())
+    dp.callback_query.middleware(LinkGate())
 
     # Order matters a bit — register routers in a logical sequence.
     # Aiogram dispatches on first match, so put more specific (e.g. start with deeplink) first.
