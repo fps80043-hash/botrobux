@@ -12,7 +12,7 @@ from aiogram.types import CallbackQuery, Message
 from api import ApiError, api
 from config import SITE_URL
 from keyboards import back_to_menu_kb, link_prompt_kb, robux_amount_kb, robux_confirm_kb
-from utils import esc, fmt_num, fmt_robux, fmt_rub
+from utils import bar, esc, fmt_num, fmt_robux, fmt_rub, typing
 
 router = Router(name="robux")
 log = logging.getLogger(__name__)
@@ -58,6 +58,7 @@ def _stock_indicator(avail: int) -> tuple[str, str]:
 
 async def _render_start(target: Message | CallbackQuery) -> None:
     msg = target if isinstance(target, Message) else target.message
+    await typing(target)
 
     try:
         stock = await api.robux_stock()
@@ -139,6 +140,18 @@ async def _show_quote(target: Message | CallbackQuery, amount: int) -> None:
             await target.answer()
         return
 
+    # Animated loading: typing action + an intermediate "calculating" card the
+    # final result replaces — feels alive instead of a frozen pause.
+    await typing(target)
+    if isinstance(target, CallbackQuery):
+        try:
+            await msg.edit_text(
+                f"⏳  Считаю цену для <b>{fmt_robux(amount)}</b>…",
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+
     try:
         balance = await api.get_balance(target.from_user.id)
     except ApiError:
@@ -175,6 +188,9 @@ async def _show_quote(target: Message | CallbackQuery, amount: int) -> None:
         lines.append(f"🎫  Геймпасс:  <b>{fmt_num(gp_amount)} R$</b>  <i>(с комиссией Roblox)</i>")
     lines.append("")
     lines.append(f"💰  Баланс:  <b>{fmt_rub(balance)}</b>")
+    if rub_price > 0:
+        pct = min(100, int(balance * 100 / rub_price))
+        lines.append(f"<code>{bar(balance, rub_price)}</code>  {pct}%")
     lines.append("")
     lines.append(RULE)
 

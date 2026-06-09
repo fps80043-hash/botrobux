@@ -99,3 +99,30 @@ def is_premium_active(premium_until: Any) -> bool:
     if not dt:
         return False
     return dt > datetime.now(timezone.utc)
+
+
+def bar(value: Any, maximum: Any, width: int = 10) -> str:
+    """Render a compact progress bar like ▰▰▰▰▰▱▱▱▱▱ (filled/empty blocks)."""
+    try:
+        v = max(0.0, float(value))
+        m = float(maximum)
+        if m <= 0:
+            return "▱" * width
+    except (TypeError, ValueError):
+        return "▱" * width
+    filled = int(round(width * min(v / m, 1.0)))
+    filled = max(0, min(width, filled))
+    return "▰" * filled + "▱" * (width - filled)
+
+
+async def typing(target: Any) -> None:
+    """Show the 'typing…' chat action — makes the bot feel responsive/alive.
+    Accepts a Message or CallbackQuery; never raises."""
+    try:
+        msg = getattr(target, "message", None) or target
+        bot = getattr(target, "bot", None) or getattr(msg, "bot", None)
+        chat = getattr(msg, "chat", None)
+        if bot and chat:
+            await bot.send_chat_action(chat.id, "typing")
+    except Exception:
+        pass

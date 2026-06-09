@@ -10,7 +10,7 @@ from aiogram.types import CallbackQuery, Message
 from api import ApiError, api
 from config import ADMIN_TG_IDS, BOT_NAME, BOT_TAGLINE
 from keyboards import link_prompt_kb, main_menu_kb
-from utils import esc, fmt_relative, fmt_rub, is_premium_active
+from utils import esc, fmt_relative, fmt_rub, is_premium_active, typing
 
 router = Router(name="start")
 log = logging.getLogger(__name__)
@@ -88,6 +88,7 @@ async def start_with_deeplink(msg: Message, command):
 @router.message(Command("menu"))
 async def cmd_start(msg: Message):
     tg_id = msg.from_user.id
+    await typing(msg)
     try:
         link = await api.get_link(tg_id)
     except ApiError as e:
