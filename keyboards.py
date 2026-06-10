@@ -30,7 +30,7 @@ def main_menu_kb(is_admin: bool = False, balance: int | None = None) -> InlineKe
         [_btn("Купить Robux", cb="robux:start", icon="money")],
         [
             _btn("Баланс", cb="profile:balance", icon="wallet"),
-            _btn("Пополнить", url=f"{SITE_URL}/v2#topup", icon="money_in"),
+            _btn("Пополнить", cb="topup:start", icon="money_in"),
         ],
         [
             _btn("Профиль", cb="profile:show", icon="profile"),
@@ -80,7 +80,7 @@ def robux_confirm_kb(amount: int, can_pay: bool) -> InlineKeyboardMarkup:
     if can_pay:
         rows.append([_btn(f"Купить {amount} R$", cb=f"robux:buy:{amount}", icon="lock")])
     else:
-        rows.append([_btn("Пополнить баланс", url=f"{SITE_URL}/v2#topup", icon="money_in")])
+        rows.append([_btn("Пополнить баланс", cb="topup:start", icon="money_in")])
     rows.append([
         _btn("◁ Другая сумма", cb="robux:start", icon="money"),
         _btn("Пересчитать", cb=f"robux:amt:{amount}", icon="loading"),
@@ -93,7 +93,7 @@ def profile_kb(is_linked: bool) -> InlineKeyboardMarkup:
         rows = [
             [
                 _btn("Обновить", cb="profile:show", icon="loading"),
-                _btn("Пополнить", url=f"{SITE_URL}/v2#topup", icon="money_in"),
+                _btn("Пополнить", cb="topup:start", icon="money_in"),
             ],
             [
                 _btn("Мои заказы", cb="orders:list", icon="box"),

@@ -163,6 +163,23 @@ class SiteApi:
         )
         return data.get("order") or {}
 
+    async def topup_config(self) -> Dict[str, Any]:
+        data = await self._request("GET", "/api/bot/topup/config")
+        return data.get("topup") or {}
+
+    async def topup_create(self, telegram_id: int, amount: int, method: str) -> Dict[str, Any]:
+        return await self._request(
+            "POST", "/api/bot/topup/create",
+            params={"telegram_id": telegram_id},
+            json_body={"amount": int(amount), "method": method},
+        )
+
+    async def topup_status(self, telegram_id: int, topup_id: int) -> Dict[str, Any]:
+        return await self._request(
+            "GET", "/api/bot/topup/status",
+            params={"telegram_id": telegram_id, "id": topup_id},
+        )
+
     async def shop_catalog(self) -> Dict[str, Any]:
         return await self._request("GET", "/api/bot/shop/catalog")
 
