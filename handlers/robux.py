@@ -397,11 +397,24 @@ async def _poll_order(progress: Message, tg_id: int, oid: int, amount: int, reci
         f"{pe('money')}  Зачисляю Robux на аккаунт…",
         f"{pe('loading')}  Почти готово…",
     ]
+    miss_streak = 0
     for i in range(170):  # ~6-7 min — delivery can retry several times
         try:
             o = await api.robux_order_status(tg_id, oid)
-        except ApiError:
+            miss_streak = 0
+        except ApiError as e:
             o = {}
+            # Persistent fetch failure (e.g. order_status 404) — don't fake-spin
+            # for 6 minutes. After ~30s of misses, hand off to /orders.
+            if getattr(e, "status", 0) in (404, 400):
+                miss_streak += 1
+                if miss_streak >= 15:
+                    await progress.edit_text(
+                        f"{pe('clock')}  Заказ <code>#{oid}</code> оформлен, но статус пока не подтянулся.\n"
+                        "Проверь его в /orders — деньги защищены (вернутся при сбое).",
+                        reply_markup=orders_kb(), parse_mode="HTML",
+                    )
+                    return
         st = str(o.get("status") or "")
 
         if st == "done":
