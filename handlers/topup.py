@@ -46,9 +46,8 @@ def _amount_kb() -> InlineKeyboardMarkup:
 
 # method id → (button label, premoji icon)
 _METHODS = {
-    "platega":  ("Карта / СБП",          "money_in"),
-    "yookassa": ("Карта / СБП (ЮKassa)", "money_in"),
-    "crypto":   ("Криптовалюта",         "money"),
+    "crypto":   ("CryptoBot (от 10 ₽)", "money"),
+    "platega":  ("Карта / СБП",         "money_in"),
 }
 
 
@@ -59,7 +58,7 @@ async def _show_methods(msg: Message, amount: int) -> None:
         cfg = await api.topup_config()
     except ApiError:
         cfg = {}
-    enabled = [m for m in ("platega", "yookassa", "crypto") if (cfg.get(m) or {}).get("enabled")]
+    enabled = [m for m in ("crypto", "platega") if (cfg.get(m) or {}).get("enabled")]
     if not enabled:
         await msg.answer(
             f"{pe('cross')}  <b>Оплата временно недоступна</b>\n\n"
@@ -87,7 +86,7 @@ async def _start(target) -> None:
         f"{pe('money_in')}  <b>Пополнение баланса</b>\n{RULE}\n\n"
         f"{pe('wallet')}  Выбери сумму — оплата картой/СБП/крипто.\n"
         f"{pe('check')}  Баланс общий с сайтом: пополнишь здесь — будет и на сайте.\n\n"
-        f"{pe('info')}  <i>Минимум — 50 ₽.</i>"
+        f"{pe('info')}  <i>Минимум — 10 ₽ (CryptoBot, без комиссии).</i>"
     )
     if isinstance(target, CallbackQuery):
         try:
@@ -119,8 +118,8 @@ async def cb_topup_custom(cb: CallbackQuery, state: FSMContext):
 @router.message(TopupStates.waiting_amount)
 async def msg_topup_amount(msg: Message, state: FSMContext):
     raw = (msg.text or "").strip().replace(" ", "").replace(",", "")
-    if not raw.isdigit() or int(raw) < 50:
-        await msg.answer(f"{pe('cross')}  Введи число от 50, например <code>500</code>.", parse_mode="HTML")
+    if not raw.isdigit() or int(raw) < 10:
+        await msg.answer(f"{pe('cross')}  Введи число от 10, например <code>500</code>.", parse_mode="HTML")
         return
     await state.clear()
     await _show_methods(msg, int(raw))
