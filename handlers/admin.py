@@ -14,7 +14,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from api import ApiError, api
 from config import ADMIN_TG_IDS, SITE_URL
 from keyboards import admin_menu_kb, back_to_menu_kb
-from premoji import pe
+from premoji import eid, pe
 from utils import bar, esc, fmt_relative, fmt_rub, is_premium_active, status_label, typing
 
 router = Router(name="admin")
@@ -86,10 +86,10 @@ def _user_card(u: dict) -> str:
 
 def _user_card_kb(uid: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🌐 Открыть на сайте", url=f"{SITE_URL}/v2")],
+        [InlineKeyboardButton(text="Открыть на сайте", url=f"{SITE_URL}/v2", icon_custom_emoji_id=eid("link"))],
         [
-            InlineKeyboardButton(text="🔍 Новый поиск", callback_data="admin:find_user"),
-            InlineKeyboardButton(text="← Админка", callback_data="admin:menu"),
+            InlineKeyboardButton(text="Новый поиск", callback_data="admin:find_user", icon_custom_emoji_id=eid("people")),
+            InlineKeyboardButton(text="◁ Админка", callback_data="admin:menu", icon_custom_emoji_id=eid("settings")),
         ],
     ])
 
@@ -213,11 +213,12 @@ async def msg_admin_find_user(msg: Message, state: FSMContext):
         adm = f"  {pe('check')}" if u.get("is_admin") else ""
         lines.append(f"<code>#{uid}</code>  <b>{username}</b>{adm}  ·  {fmt_rub(balance)}")
         rows.append([InlineKeyboardButton(
-            text=f"👤 {u.get('username') or ('#'+str(uid))}", callback_data=f"admin:u:{uid}")])
+            text=f"{u.get('username') or ('#'+str(uid))}", callback_data=f"admin:u:{uid}",
+            icon_custom_emoji_id=eid("profile"))])
     if len(users) > 8:
         lines.append("")
         lines.append(f"<i>… ещё {len(users) - 8}. Уточни запрос.</i>")
-    rows.append([InlineKeyboardButton(text="← Админка", callback_data="admin:menu")])
+    rows.append([InlineKeyboardButton(text="◁ Админка", callback_data="admin:menu", icon_custom_emoji_id=eid("settings"))])
     await msg.answer("\n".join(lines), reply_markup=InlineKeyboardMarkup(inline_keyboard=rows), parse_mode="HTML")
 
 

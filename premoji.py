@@ -73,3 +73,10 @@ def pe(name: str, fallback: str = "") -> str:
         return fallback
     emoji_id, uni = item
     return f'<tg-emoji emoji-id="{emoji_id}">{fallback or uni}</tg-emoji>'
+
+
+def eid(name: str) -> str | None:
+    """Return the bare custom-emoji id for use as a keyboard button icon
+    (InlineKeyboardButton/KeyboardButton.icon_custom_emoji_id, Bot API 9.4+)."""
+    item = _PE.get(name)
+    return item[0] if item else None
