@@ -354,7 +354,7 @@ async def msg_recipient(msg: Message, state: FSMContext):
             await progress.edit_text(
                 f"{spin}  <b>Оформляю заказ</b>\n{RULE}\n\n"
                 f"{pe('eye')}  Ищу геймпасс на <b>{fmt_robux(amount)}</b>…\n\n"
-                f"<i>Не закрывай — поиск по нику бывает дольше.</i>",
+                f"<i>Поиск по нику бывает дольше.</i>",
                 parse_mode="HTML",
             )
         except Exception:
@@ -434,7 +434,7 @@ async def _poll_order(progress: Message, tg_id: int, oid: int, amount: int, reci
                 f"{spin}  <b>Заказ #{oid}</b>\n{RULE}\n\n"
                 f"{stage}\n\n"
                 f"<code>{bar(prog, 100)}</code>  {prog}%\n\n"
-                f"{pe('info')}  <i>Обычно 5–60 сек, иногда чуть дольше — не закрывай.</i>",
+                f"{pe('info')}  <i>Обычно 5–60 секунд.</i>",
                 parse_mode="HTML",
             )
         except Exception:

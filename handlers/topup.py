@@ -174,7 +174,7 @@ async def _create(msg: Message, tg_id: int, amount: int, method: str) -> None:
         f"{pe('money_in')}  <b>Счёт на {fmt_rub(amount)}</b>\n{RULE}\n\n"
         f"{pe('send')}  Нажми «Оплатить» и заверши оплату.\n"
         f"{pe('loading')}  Как оплатишь — баланс зачислится автоматически.\n\n"
-        f"{pe('info')}  <i>Заказ #{tid} · не закрывай — я слежу за оплатой.</i>",
+        f"{pe('info')}  <i>Заказ #{tid} · я слежу за оплатой.</i>",
         reply_markup=kb, parse_mode="HTML",
     )
     asyncio.create_task(_poll(card, tg_id, tid, amount, kb))
