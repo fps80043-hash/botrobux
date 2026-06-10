@@ -9,6 +9,7 @@ from aiogram.types import CallbackQuery, Message
 
 from api import ApiError, api
 from keyboards import confirm_unlink_kb, link_prompt_kb, profile_kb
+from premoji import pe
 from utils import esc, fmt_rub, is_premium_active, parse_iso
 
 router = Router(name="profile")
@@ -21,46 +22,31 @@ def _profile_text(profile: dict, link: dict | None) -> str:
     username = profile.get("username") or "—"
     balance = int(profile.get("balance") or 0)
     email = profile.get("email") or ""
-    is_admin = bool(profile.get("is_admin"))
     prem = is_premium_active(profile.get("premium_until"))
 
-    badges = []
-    if is_admin:
-        badges.append("🛡 ADMIN")
-    if prem:
-        badges.append("⭐ PREMIUM")
-    badge_line = "  ".join(badges)
-
     lines = [
-        f"👤  <b>{esc(username)}</b>",
+        f"{pe('profile')}  <b>{esc(username)}</b>",
+        RULE,
+        "",
+        f"{pe('wallet')}  <b>Баланс</b>",
+        f"        {fmt_rub(balance)}",
+        "",
+        f"{pe('tag')}  <b>ID на сайте</b>",
+        f"        <code>#{int(profile.get('id') or 0)}</code>",
     ]
-    if badge_line:
-        lines.append(f"   {badge_line}")
-    lines.append(RULE)
-    lines.append("")
-    lines.append(f"💰  <b>Баланс</b>")
-    lines.append(f"        {fmt_rub(balance)}")
-    lines.append("")
-    lines.append(f"🆔  <b>ID на сайте</b>")
-    lines.append(f"        <code>#{int(profile.get('id') or 0)}</code>")
 
     if email:
-        lines.append("")
-        lines.append(f"📧  <b>Email</b>")
-        lines.append(f"        <code>{esc(email)}</code>")
+        lines += ["", f"{pe('clip')}  <b>Email</b>", f"        <code>{esc(email)}</code>"]
 
     if prem:
         until = parse_iso(profile.get("premium_until"))
         if until:
-            lines.append("")
-            lines.append(f"⭐  <b>Premium до</b>")
-            lines.append(f"        {until.strftime('%d.%m.%Y')}")
+            lines += ["", f"{pe('gift')}  <b>Premium до</b>", f"        {until.strftime('%d.%m.%Y')}"]
 
     if link:
         tg_un = link.get("telegram_username")
         linked_at = link.get("created_at")
-        lines.append("")
-        lines.append(f"📱  <b>Telegram</b>")
+        lines += ["", f"{pe('bot')}  <b>Telegram</b>"]
         if tg_un:
             lines.append(f"        @{esc(tg_un)}")
         if linked_at:
@@ -82,7 +68,7 @@ async def _show_profile(target: Message | CallbackQuery) -> None:
 
     if not link:
         text = (
-            "👤  <b>Профиль</b>\n"
+            f"{pe('profile')}  <b>Профиль</b>\n"
             f"{RULE}\n\n"
             "У тебя ещё нет привязанного аккаунта сайта.\n\n"
             "Нажми «Привязать аккаунт» чтобы видеть здесь баланс, "
@@ -138,7 +124,7 @@ async def cmd_balance(msg: Message):
         await msg.answer(f"⚠️ Ошибка: {esc(e)}", parse_mode="HTML")
         return
     await msg.answer(
-        f"💰  <b>Твой баланс</b>\n"
+        f"{pe('wallet')}  <b>Твой баланс</b>\n"
         f"{RULE}\n\n"
         f"        <b>{fmt_rub(balance)}</b>",
         parse_mode="HTML",
@@ -159,13 +145,13 @@ async def cb_balance(cb: CallbackQuery):
     except ApiError as e:
         await cb.answer(f"Ошибка: {e}", show_alert=True)
         return
-    await cb.answer(f"💰  Баланс: {fmt_rub(balance)}", show_alert=True)
+    await cb.answer(f"{pe('wallet')}  Баланс: {fmt_rub(balance)}", show_alert=True)
 
 
 @router.callback_query(F.data == "profile:unlink")
 async def cb_unlink_ask(cb: CallbackQuery):
     text = (
-        "🔓  <b>Отвязать аккаунт?</b>\n"
+        f"{pe('unlock')}  <b>Отвязать аккаунт?</b>\n"
         f"{RULE}\n\n"
         "После отвязки бот перестанет показывать твой баланс и заказы.\n\n"
         "Данные на сайте сохранятся — это просто разрыв связи Telegram ↔ сайт.\n\n"
@@ -187,7 +173,7 @@ async def cb_unlink_yes(cb: CallbackQuery):
         await cb.answer(f"Ошибка: {e}", show_alert=True)
         return
     await cb.message.edit_text(
-        "✅  <b>Аккаунт отвязан</b>\n\n"
+        f"{pe('check')}  <b>Аккаунт отвязан</b>\n\n"
         "Если захочешь привязать снова — получи код на сайте и пришли <code>/link 123456</code>.",
         reply_markup=link_prompt_kb(), parse_mode="HTML",
     )

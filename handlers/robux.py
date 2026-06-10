@@ -84,25 +84,25 @@ async def _render_start(target: Message | CallbackQuery) -> None:
     # Try also showing current balance for context
     try:
         bal = await api.get_balance(target.from_user.id)
-        balance_line = f"💰  Твой баланс:  <b>{fmt_rub(bal)}</b>\n"
+        balance_line = f"{pe('wallet')}  Твой баланс:  <b>{fmt_rub(bal)}</b>\n"
     except ApiError:
         balance_line = ""
 
     text = (
-        f"💎  <b>Покупка Robux</b>\n"
+        f"{pe('money')}  <b>Покупка Robux</b>\n"
         f"{RULE}\n\n"
         f"{stock_emo}  В наличии:  <b>{fmt_num(avail)} R$</b>  <i>({stock_txt})</i>\n"
     )
     if rate_str:
-        text += f"💱  Курс:  {rate_str}\n"
+        text += f"{pe('stats')}  Курс:  {rate_str}\n"
     text += balance_line
     text += (
         f"\n{RULE}\n"
-        f"Выбери сумму или введи свою. Минимум — <b>50 R$</b>.\n\n"
-        f"⚡  Доставка: ~5-15 минут\n"
-        f"🔒  Безопасно: только через геймпасс\n"
-        f"🛡  Гарантия возврата средств\n\n"
-        f"<i>Финальное оформление — на сайте: там укажешь ник или ссылку на геймпасс.</i>"
+        f"{pe('write')}  Выбери сумму или введи свою. Минимум — <b>50 R$</b>.\n\n"
+        f"{pe('clock')}  Доставка: ~5–15 минут\n"
+        f"{pe('lock')}  Безопасно: через геймпасс\n"
+        f"{pe('check')}  Гарантия возврата средств\n\n"
+        f"{pe('bot')}  <i>Оформить можно прямо здесь — нажми сумму.</i>"
     )
 
     if isinstance(target, CallbackQuery):
@@ -178,20 +178,20 @@ async def _show_quote(target: Message | CallbackQuery, amount: int) -> None:
     can_pay = balance >= rub_price
 
     lines = [
-        f"💎  <b>{fmt_robux(amount)}</b>",
+        f"{pe('money')}  <b>{fmt_robux(amount)}</b>",
         f"{RULE}",
         "",
-        f"💸  <b>К оплате:</b>  {fmt_rub(rub_price)}",
+        f"{pe('money_out')}  <b>К оплате:</b>  {fmt_rub(rub_price)}",
     ]
     if rate:
         try:
-            lines.append(f"💱  Курс:  <b>{float(rate):.2f}</b> ₽/R$")
+            lines.append(f"{pe('stats')}  Курс:  <b>{float(rate):.2f}</b> ₽/R$")
         except (TypeError, ValueError):
             pass
     if gp_amount and int(gp_amount) != amount:
-        lines.append(f"🎫  Геймпасс:  <b>{fmt_num(gp_amount)} R$</b>  <i>(с комиссией Roblox)</i>")
+        lines.append(f"{pe('tag')}  Геймпасс:  <b>{fmt_num(gp_amount)} R$</b>  <i>(с комиссией Roblox)</i>")
     lines.append("")
-    lines.append(f"💰  Баланс:  <b>{fmt_rub(balance)}</b>")
+    lines.append(f"{pe('wallet')}  Баланс:  <b>{fmt_rub(balance)}</b>")
     if rub_price > 0:
         pct = min(100, int(balance * 100 / rub_price))
         lines.append(f"<code>{bar(balance, rub_price)}</code>  {pct}%")
@@ -199,17 +199,16 @@ async def _show_quote(target: Message | CallbackQuery, amount: int) -> None:
     lines.append(RULE)
 
     if can_pay:
-        # Calculate balance "remainder" after this purchase
         remaining = balance - rub_price
-        lines.append(f"✅  <b>Баланса хватает</b>")
+        lines.append(f"{pe('check')}  <b>Баланса хватает</b>")
         lines.append(f"После покупки останется:  <b>{fmt_rub(remaining)}</b>")
         lines.append("")
-        lines.append("Жми «🔒 Купить» — введёшь ник или ссылку на геймпасс.")
+        lines.append(f"{pe('lock')}  Жми «Купить» — введёшь ник или ссылку на геймпасс.")
     else:
         diff = rub_price - balance
-        lines.append(f"⚠️  <b>Не хватает:  {fmt_rub(diff)}</b>")
+        lines.append(f"{pe('cross')}  <b>Не хватает:  {fmt_rub(diff)}</b>")
         lines.append("")
-        lines.append("Сначала пополни баланс, затем возвращайся.")
+        lines.append(f"{pe('wallet')}  Сначала пополни баланс, затем возвращайся.")
 
     text = "\n".join(lines)
     if isinstance(target, CallbackQuery):
@@ -339,7 +338,9 @@ async def msg_recipient(msg: Message, state: FSMContext):
     tg_id = msg.from_user.id
     await typing(msg)
     progress = await msg.answer(
-        f"{pe('clock')}  Создаю заказ на <b>{fmt_robux(amount)}</b>…",
+        f"{pe('loading')}  <b>Оформляю заказ</b>\n{RULE}\n\n"
+        f"{pe('eye')}  Ищу геймпасс на <b>{fmt_robux(amount)}</b>…\n\n"
+        f"<i>Если по нику — поиск может занять до минуты.</i>",
         parse_mode="HTML",
     )
 
@@ -368,11 +369,12 @@ _SPIN = ["◐", "◓", "◑", "◒"]
 async def _poll_order(progress: Message, tg_id: int, oid: int, amount: int, recipient: str) -> None:
     """Animate while the delivery worker runs; show final result."""
     stages = [
-        f"{pe('money')}  Бронирую и оплачиваю…",
+        f"{pe('lock')}  Бронирую и списываю с баланса…",
         f"{pe('bot')}  Покупаю геймпасс на Roblox…",
-        f"{pe('loading')}  Зачисляю Robux…",
+        f"{pe('money')}  Зачисляю Robux на аккаунт…",
+        f"{pe('loading')}  Почти готово…",
     ]
-    for i in range(70):  # ~2.5 min max
+    for i in range(170):  # ~6-7 min — delivery can retry several times
         try:
             o = await api.robux_order_status(tg_id, oid)
         except ApiError:
@@ -401,11 +403,15 @@ async def _poll_order(progress: Message, tg_id: int, oid: int, amount: int, reci
             return
 
         spin = _SPIN[i % len(_SPIN)]
-        stage = stages[min(i // 3, len(stages) - 1)]
+        stage = stages[min(i // 4, len(stages) - 1)]
+        # Progress bar fills gradually (caps ~95% until done so it never lies).
+        prog = min(95, 8 + i * 4)
         try:
             await progress.edit_text(
-                f"{spin}  <b>Оформляю заказ #{oid}</b>\n{RULE}\n\n{stage}\n\n"
-                f"<i>Обычно занимает 5–60 секунд…</i>",
+                f"{spin}  <b>Заказ #{oid}</b>\n{RULE}\n\n"
+                f"{stage}\n\n"
+                f"<code>{bar(prog, 100)}</code>  {prog}%\n\n"
+                f"{pe('info')}  <i>Обычно 5–60 сек, иногда чуть дольше — не закрывай.</i>",
                 parse_mode="HTML",
             )
         except Exception:

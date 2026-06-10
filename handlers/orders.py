@@ -9,6 +9,7 @@ from aiogram.types import CallbackQuery, Message
 
 from api import ApiError, api
 from keyboards import link_prompt_kb, orders_kb
+from premoji import pe
 from utils import esc, fmt_relative, fmt_robux, fmt_rub, status_label
 
 router = Router(name="orders")
@@ -39,11 +40,10 @@ async def _ensure_linked(target: Message | CallbackQuery) -> bool:
 def _format_orders(items: list) -> str:
     if not items:
         return (
-            f"📋  <b>Мои заказы Robux</b>\n"
+            f"{pe('box')}  <b>Мои заказы Robux</b>\n"
             f"{RULE}\n\n"
-            "Пока нет заказов.\n\n"
-            "Нажми «💎 Купить Robux» в меню — там пресеты от 100 до 10 000 R$ "
-            "и калькулятор для произвольной суммы."
+            f"{pe('info')}  Пока нет заказов.\n\n"
+            "Нажми «💎 Купить Robux» в меню — оформишь покупку прямо здесь."
         )
 
     # Calculate stats
@@ -52,10 +52,10 @@ def _format_orders(items: list) -> str:
     total_robux = sum(int(o.get("robux_amount") or 0) for o in items if str(o.get("status") or "").lower() in ("done", "completed", "paid"))
 
     lines = [
-        f"📋  <b>Мои заказы Robux</b>",
+        f"{pe('box')}  <b>Мои заказы Robux</b>",
         f"{RULE}",
         "",
-        f"Всего: <b>{total_orders}</b>  ·  Куплено: <b>{total_robux:,}</b> R$".replace(",", " "),
+        f"{pe('stats')}  Всего: <b>{total_orders}</b>  ·  Куплено: <b>{total_robux:,}</b> R$".replace(",", " "),
     ]
     if total_spent > 0:
         lines.append(f"Потрачено: <b>{fmt_rub(total_spent)}</b>")

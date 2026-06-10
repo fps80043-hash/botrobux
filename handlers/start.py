@@ -22,7 +22,7 @@ WELCOME_LINKED_TEMPLATE = (
     pe("money") + "  <b>{bot}</b>\n"
     "<i>{tagline}</i>\n"
     "{rule}\n\n"
-    + pe("smile") + "  Привет, <b>{username}</b>! {badges}\n\n"
+    + pe("smile") + "  Привет, <b>{username}</b>!\n\n"
     + pe("wallet") + "  Баланс:  <b>{balance}</b>\n"
     + pe("tag") + "  ID:  <code>#{uid}</code>"
     "{premium_line}"
