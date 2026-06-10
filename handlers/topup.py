@@ -44,17 +44,41 @@ def _amount_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-async def _pick_method() -> str:
-    """Choose an enabled top-up method. Platega is preferred once it's live;
-    until then we fall back to YooKassa / CryptoBot."""
+# method id → (button label, premoji icon)
+_METHODS = {
+    "platega":  ("Карта / СБП",          "money_in"),
+    "yookassa": ("Карта / СБП (ЮKassa)", "money_in"),
+    "crypto":   ("Криптовалюта",         "money"),
+}
+
+
+async def _show_methods(msg: Message, amount: int) -> None:
+    """After the amount is chosen — let the user pick HOW to pay."""
+    await typing(msg)
     try:
         cfg = await api.topup_config()
     except ApiError:
         cfg = {}
-    for m in ("platega", "yookassa", "crypto"):
-        if (cfg.get(m) or {}).get("enabled"):
-            return m
-    return ""
+    enabled = [m for m in ("platega", "yookassa", "crypto") if (cfg.get(m) or {}).get("enabled")]
+    if not enabled:
+        await msg.answer(
+            f"{pe('cross')}  <b>Оплата временно недоступна</b>\n\n"
+            f"Способы пополнения ещё подключаются. Пока можно на сайте: {SITE_URL}/v2#topup",
+            reply_markup=back_to_menu_kb(), parse_mode="HTML",
+        )
+        return
+    rows = []
+    for m in enabled:
+        label, icon = _METHODS[m]
+        rows.append([InlineKeyboardButton(text=label, callback_data=f"topup:go:{m}:{amount}",
+                                          icon_custom_emoji_id=eid(icon))])
+    rows.append([InlineKeyboardButton(text="◁  Назад", callback_data="topup:start",
+                                      icon_custom_emoji_id=eid("home"))])
+    await msg.answer(
+        f"{pe('wallet')}  <b>Пополнение на {fmt_rub(amount)}</b>\n{RULE}\n\n"
+        f"{pe('send')}  Выбери способ оплаты:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows), parse_mode="HTML",
+    )
 
 
 async def _start(target) -> None:
@@ -99,7 +123,7 @@ async def msg_topup_amount(msg: Message, state: FSMContext):
         await msg.answer(f"{pe('cross')}  Введи число от 50, например <code>500</code>.", parse_mode="HTML")
         return
     await state.clear()
-    await _create(msg, msg.from_user.id, int(raw))
+    await _show_methods(msg, int(raw))
 
 
 @router.callback_query(F.data.startswith("topup:amt:"))
@@ -110,19 +134,23 @@ async def cb_topup_amt(cb: CallbackQuery):
         await cb.answer("Неверная сумма", show_alert=True)
         return
     await cb.answer()
-    await _create(cb.message, cb.from_user.id, amount)
+    await _show_methods(cb.message, amount)
 
 
-async def _create(msg: Message, tg_id: int, amount: int) -> None:
-    await typing(msg)
-    method = await _pick_method()
-    if not method:
-        await msg.answer(
-            f"{pe('cross')}  <b>Оплата временно недоступна</b>\n\n"
-            f"Способы пополнения ещё подключаются. Пока пополнить можно на сайте: {SITE_URL}/v2#topup",
-            reply_markup=back_to_menu_kb(), parse_mode="HTML",
-        )
+@router.callback_query(F.data.startswith("topup:go:"))
+async def cb_topup_go(cb: CallbackQuery):
+    parts = cb.data.split(":")
+    try:
+        method, amount = parts[2], int(parts[3])
+    except (ValueError, IndexError):
+        await cb.answer("Ошибка", show_alert=True)
         return
+    await cb.answer()
+    await _create(cb.message, cb.from_user.id, amount, method)
+
+
+async def _create(msg: Message, tg_id: int, amount: int, method: str) -> None:
+    await typing(msg)
     try:
         r = await api.topup_create(tg_id, amount, method)
     except ApiError as e:
