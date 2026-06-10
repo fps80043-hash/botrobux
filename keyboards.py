@@ -90,11 +90,9 @@ def robux_amount_kb() -> InlineKeyboardMarkup:
 def robux_confirm_kb(amount: int, can_pay: bool) -> InlineKeyboardMarkup:
     rows = []
     if can_pay:
+        # Primary: buy right here in the bot (reserve + pay + deliver).
         rows.append([
-            InlineKeyboardButton(
-                text=f"{EMO_SITE}  Оформить {amount} R$ на сайте",
-                url=f"{SITE_URL}/v2",
-            )
+            InlineKeyboardButton(text=f"🔒  Купить {amount} R$", callback_data=f"robux:buy:{amount}"),
         ])
     else:
         rows.append([

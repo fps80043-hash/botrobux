@@ -140,6 +140,26 @@ class SiteApi:
             params={"telegram_id": telegram_id, "limit": limit},
         )
 
+    async def robux_order(self, telegram_id: int, robux_amount: int, *,
+                          nick: str = "", url: str = "") -> Dict[str, Any]:
+        """Reserve + pay a Robux order in one call (in-bot purchase)."""
+        body = {"robux_amount": int(robux_amount)}
+        if url:
+            body["gamepass_url"] = url
+        if nick:
+            body["nick"] = nick
+        return await self._request(
+            "POST", "/api/bot/robux/order",
+            params={"telegram_id": telegram_id}, json_body=body,
+        )
+
+    async def robux_order_status(self, telegram_id: int, order_id: int) -> Dict[str, Any]:
+        data = await self._request(
+            "GET", "/api/bot/robux/order_status",
+            params={"telegram_id": telegram_id, "id": order_id},
+        )
+        return data.get("order") or {}
+
     async def shop_catalog(self) -> Dict[str, Any]:
         return await self._request("GET", "/api/bot/shop/catalog")
 

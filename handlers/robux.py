@@ -1,7 +1,9 @@
-"""Robux purchase flow: stock, quote, presets, custom amount."""
+"""Robux purchase flow: stock, quote, presets, custom amount, in-bot buy."""
 from __future__ import annotations
 
+import asyncio
 import logging
+import re
 
 from aiogram import F, Router
 from aiogram.filters import Command
@@ -11,7 +13,8 @@ from aiogram.types import CallbackQuery, Message
 
 from api import ApiError, api
 from config import SITE_URL
-from keyboards import back_to_menu_kb, link_prompt_kb, robux_amount_kb, robux_confirm_kb
+from keyboards import back_to_menu_kb, link_prompt_kb, orders_kb, robux_amount_kb, robux_confirm_kb
+from premoji import pe
 from utils import bar, esc, fmt_num, fmt_robux, fmt_rub, typing
 
 router = Router(name="robux")
@@ -23,6 +26,7 @@ RULE = "━━━━━━━━━━━━━━━━━━━━━━"
 
 class RobuxStates(StatesGroup):
     waiting_for_amount = State()
+    waiting_for_recipient = State()
 
 
 async def _ensure_linked(target: Message | CallbackQuery) -> bool:
@@ -200,7 +204,7 @@ async def _show_quote(target: Message | CallbackQuery, amount: int) -> None:
         lines.append(f"✅  <b>Баланса хватает</b>")
         lines.append(f"После покупки останется:  <b>{fmt_rub(remaining)}</b>")
         lines.append("")
-        lines.append("Жми «Оформить на сайте» — там введёшь ник или ссылку.")
+        lines.append("Жми «🔒 Купить» — введёшь ник или ссылку на геймпасс.")
     else:
         diff = rub_price - balance
         lines.append(f"⚠️  <b>Не хватает:  {fmt_rub(diff)}</b>")
@@ -274,3 +278,142 @@ async def msg_custom_amount(msg: Message, state: FSMContext):
         return
     await state.clear()
     await _show_quote(msg, amount)
+
+
+# ─────────────────────────── In-bot purchase ───────────────────────────
+
+@router.callback_query(F.data.startswith("robux:buy:"))
+async def cb_robux_buy(cb: CallbackQuery, state: FSMContext):
+    """Start the in-bot buy: ask the recipient (nick or gamepass link)."""
+    if not await _ensure_linked(cb):
+        return
+    try:
+        amount = int(cb.data.split(":")[2])
+    except (ValueError, IndexError):
+        await cb.answer("Неверная сумма", show_alert=True)
+        return
+    await state.set_state(RobuxStates.waiting_for_recipient)
+    await state.update_data(amount=amount)
+    text = (
+        f"{pe('bot')}  <b>Куда зачислить {fmt_robux(amount)}</b>\n"
+        f"{RULE}\n\n"
+        f"{pe('write')}  Пришли <b>ник Roblox</b> или <b>ссылку на геймпасс</b>:\n\n"
+        f"• <code>Builderman</code>  — найду твой геймпасс сам\n"
+        f"• <code>roblox.com/game-pass/123…</code>  — если уже создал\n\n"
+        f"{pe('info')}  <i>Геймпасс должен быть на нужную сумму и выставлен на продажу.</i>"
+    )
+    try:
+        await cb.message.edit_text(text, reply_markup=back_to_menu_kb(), parse_mode="HTML")
+    except Exception:
+        await cb.message.answer(text, reply_markup=back_to_menu_kb(), parse_mode="HTML")
+    await cb.answer()
+
+
+@router.message(RobuxStates.waiting_for_recipient)
+async def msg_recipient(msg: Message, state: FSMContext):
+    data = await state.get_data()
+    amount = int(data.get("amount") or 0)
+    await state.clear()
+    if amount <= 0:
+        await msg.answer("Что-то пошло не так — начни заново: /buy")
+        return
+
+    raw = (msg.text or "").strip()
+    nick, url = "", ""
+    if re.search(r"roblox\.com/game-pass/\d+", raw, re.I) or raw.isdigit():
+        url = raw
+    else:
+        cand = raw.lstrip("@")
+        if re.fullmatch(r"[A-Za-z0-9_]{3,25}", cand):
+            nick = cand
+        else:
+            await msg.answer(
+                f"{pe('cross')}  Не похоже на ник или ссылку.\n"
+                "Ник — латиница/цифры/_ (3–25), или ссылка на геймпасс.",
+                parse_mode="HTML",
+            )
+            await state.set_state(RobuxStates.waiting_for_recipient)
+            await state.update_data(amount=amount)
+            return
+
+    tg_id = msg.from_user.id
+    await typing(msg)
+    progress = await msg.answer(
+        f"{pe('clock')}  Создаю заказ на <b>{fmt_robux(amount)}</b>…",
+        parse_mode="HTML",
+    )
+
+    try:
+        res = await api.robux_order(tg_id, amount, nick=nick, url=url)
+    except ApiError as e:
+        await progress.edit_text(
+            f"{pe('cross')}  <b>Не удалось оформить</b>\n{RULE}\n\n<i>{esc(e)}</i>\n\n"
+            "Проверь геймпасс/ник и баланс, затем попробуй снова: /buy",
+            reply_markup=back_to_menu_kb(), parse_mode="HTML",
+        )
+        return
+
+    oid = int(res.get("order_id") or 0)
+    if oid <= 0:
+        await progress.edit_text(f"{pe('cross')} Сервер не вернул номер заказа. Попробуй ещё раз.",
+                                 reply_markup=back_to_menu_kb(), parse_mode="HTML")
+        return
+
+    await _poll_order(progress, tg_id, oid, amount, nick or url)
+
+
+_SPIN = ["◐", "◓", "◑", "◒"]
+
+
+async def _poll_order(progress: Message, tg_id: int, oid: int, amount: int, recipient: str) -> None:
+    """Animate while the delivery worker runs; show final result."""
+    stages = [
+        f"{pe('money')}  Бронирую и оплачиваю…",
+        f"{pe('bot')}  Покупаю геймпасс на Roblox…",
+        f"{pe('loading')}  Зачисляю Robux…",
+    ]
+    for i in range(70):  # ~2.5 min max
+        try:
+            o = await api.robux_order_status(tg_id, oid)
+        except ApiError:
+            o = {}
+        st = str(o.get("status") or "")
+
+        if st == "done":
+            await progress.edit_text(
+                f"{pe('party')}  <b>Готово! Robux зачислены</b>\n{RULE}\n\n"
+                f"{pe('money')}  Сумма:  <b>{fmt_robux(amount)}</b>\n"
+                f"{pe('check')}  Заказ:  <code>#{oid}</code>\n"
+                f"{pe('profile')}  Аккаунт:  <b>{esc(recipient)}</b>\n\n"
+                f"{pe('smile')}  Спасибо за покупку!",
+                reply_markup=orders_kb(), parse_mode="HTML",
+            )
+            return
+        if st in ("failed", "cancelled", "expired", "error"):
+            err = esc(o.get("error") or "")
+            await progress.edit_text(
+                f"{pe('cross')}  <b>Заказ не выполнен</b>  ({esc(st)})\n{RULE}\n\n"
+                + (f"<i>{err}</i>\n\n" if err else "")
+                + f"{pe('info')}  Если деньги списались — они <b>возвращены на баланс</b> автоматически.\n"
+                  f"Заказ <code>#{oid}</code> — детали в /orders.",
+                reply_markup=back_to_menu_kb(), parse_mode="HTML",
+            )
+            return
+
+        spin = _SPIN[i % len(_SPIN)]
+        stage = stages[min(i // 3, len(stages) - 1)]
+        try:
+            await progress.edit_text(
+                f"{spin}  <b>Оформляю заказ #{oid}</b>\n{RULE}\n\n{stage}\n\n"
+                f"<i>Обычно занимает 5–60 секунд…</i>",
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+        await asyncio.sleep(2)
+
+    await progress.edit_text(
+        f"{pe('clock')}  Заказ <code>#{oid}</code> ещё выполняется дольше обычного.\n"
+        "Статус появится в /orders — деньги защищены (вернутся при сбое).",
+        reply_markup=orders_kb(), parse_mode="HTML",
+    )
