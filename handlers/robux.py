@@ -344,12 +344,35 @@ async def msg_recipient(msg: Message, state: FSMContext):
         parse_mode="HTML",
     )
 
+    # Create the order in the background and animate while it runs (the by-nick
+    # gamepass scan can take 10–60s — don't leave a frozen message).
+    order_task = asyncio.create_task(api.robux_order(tg_id, amount, nick=nick, url=url))
+    i = 0
+    while not order_task.done():
+        spin = _SPIN[i % len(_SPIN)]
+        try:
+            await progress.edit_text(
+                f"{spin}  <b>Оформляю заказ</b>\n{RULE}\n\n"
+                f"{pe('eye')}  Ищу геймпасс на <b>{fmt_robux(amount)}</b>…\n\n"
+                f"<i>Не закрывай — поиск по нику бывает дольше.</i>",
+                parse_mode="HTML",
+            )
+        except Exception:
+            pass
+        await asyncio.sleep(1.6)
+        i += 1
     try:
-        res = await api.robux_order(tg_id, amount, nick=nick, url=url)
+        res = order_task.result()
     except ApiError as e:
         await progress.edit_text(
             f"{pe('cross')}  <b>Не удалось оформить</b>\n{RULE}\n\n<i>{esc(e)}</i>\n\n"
-            "Проверь геймпасс/ник и баланс, затем попробуй снова: /buy",
+            f"{pe('info')}  Проверь геймпасс/ник и баланс, затем попробуй снова: /buy",
+            reply_markup=back_to_menu_kb(), parse_mode="HTML",
+        )
+        return
+    except Exception as e:
+        await progress.edit_text(
+            f"{pe('cross')}  Ошибка: <i>{esc(e)}</i>\n\nПопробуй снова: /buy",
             reply_markup=back_to_menu_kb(), parse_mode="HTML",
         )
         return

@@ -57,11 +57,13 @@ class SiteApi:
         *,
         params: Optional[Dict[str, Any]] = None,
         json_body: Optional[Dict[str, Any]] = None,
+        timeout: Optional[float] = None,
     ) -> Dict[str, Any]:
         url = f"{SITE_URL}{path}"
         session = await self._get_session()
+        req_timeout = aiohttp.ClientTimeout(total=timeout) if timeout else None
         try:
-            async with session.request(method, url, params=params, json=json_body) as resp:
+            async with session.request(method, url, params=params, json=json_body, timeout=req_timeout) as resp:
                 # Try parsing JSON regardless of status (errors usually have detail)
                 try:
                     data = await resp.json(content_type=None)
@@ -148,9 +150,10 @@ class SiteApi:
             body["gamepass_url"] = url
         if nick:
             body["nick"] = nick
+        # By-nick gamepass scan on the site can take a while → generous timeout.
         return await self._request(
             "POST", "/api/bot/robux/order",
-            params={"telegram_id": telegram_id}, json_body=body,
+            params={"telegram_id": telegram_id}, json_body=body, timeout=120,
         )
 
     async def robux_order_status(self, telegram_id: int, order_id: int) -> Dict[str, Any]:

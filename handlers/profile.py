@@ -145,7 +145,9 @@ async def cb_balance(cb: CallbackQuery):
     except ApiError as e:
         await cb.answer(f"Ошибка: {e}", show_alert=True)
         return
-    await cb.answer(f"{pe('wallet')}  Баланс: {fmt_rub(balance)}", show_alert=True)
+    # NOTE: callback alerts are PLAIN TEXT — no HTML/tg-emoji here, or the raw
+    # <tg-emoji…> tag shows up literally. Use a plain unicode emoji.
+    await cb.answer(f"💰  Баланс: {fmt_rub(balance)}", show_alert=True)
 
 
 @router.callback_query(F.data == "profile:unlink")
