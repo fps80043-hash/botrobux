@@ -180,6 +180,18 @@ class SiteApi:
             params={"telegram_id": telegram_id, "id": topup_id},
         )
 
+    async def stars_info(self, topup_id: int) -> Dict[str, Any]:
+        """How many Stars (XTR) to charge for a pending stars top-up (used for the
+        site deep-link flow). No per-user param — the topup row already knows its user."""
+        return await self._request("GET", "/api/bot/topup/stars_info", params={"id": topup_id})
+
+    async def stars_confirm(self, topup_id: int, charge_id: str = "") -> Dict[str, Any]:
+        """Credit a stars top-up after a successful XTR payment. Idempotent."""
+        return await self._request(
+            "POST", "/api/bot/topup/stars_confirm",
+            json_body={"id": int(topup_id), "charge_id": charge_id},
+        )
+
     async def shop_catalog(self) -> Dict[str, Any]:
         return await self._request("GET", "/api/bot/shop/catalog")
 

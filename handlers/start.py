@@ -83,6 +83,25 @@ async def start_with_deeplink(msg: Message, command):
             from .link import perform_link
             await perform_link(msg, code)
             return
+    if payload.startswith("stars_"):
+        # Came from the site "Pay with Telegram Stars" button — send the XTR invoice.
+        try:
+            tid = int(payload[len("stars_"):])
+        except ValueError:
+            tid = 0
+        if tid > 0:
+            from .payments import send_stars_invoice
+            try:
+                info = await api.stars_info(tid)
+            except ApiError as e:
+                await msg.answer(f"⚠️ Не удалось открыть оплату звёздами: <i>{esc(e)}</i>", parse_mode="HTML")
+                return
+            if str(info.get("status") or "") == "paid":
+                await msg.answer(f"{pe('check')} Этот счёт уже оплачен — баланс пополнен.", parse_mode="HTML")
+                return
+            await send_stars_invoice(msg.bot, msg.chat.id, tid,
+                                     int(info.get("stars") or 0), int(info.get("rub") or 0))
+            return
     await cmd_start(msg)
 
 

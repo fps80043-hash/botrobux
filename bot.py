@@ -21,7 +21,7 @@ from aiogram.types import BotCommand, BotCommandScopeDefault
 
 from api import ApiError, api
 from config import BOT_TOKEN, BOT_NAME, setup_logging
-from handlers import admin, link, orders, profile, robux, start, topup
+from handlers import admin, link, orders, payments, profile, robux, start, topup
 from middlewares import LinkGate
 
 log = logging.getLogger("bot")
@@ -101,6 +101,7 @@ async def main() -> None:
     dp.include_router(start.router)
     dp.include_router(link.router)
     dp.include_router(profile.router)
+    dp.include_router(payments.router)   # pre_checkout + successful_payment (Stars)
     dp.include_router(topup.router)
     dp.include_router(robux.router)
     dp.include_router(orders.router)

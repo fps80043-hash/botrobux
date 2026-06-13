@@ -46,8 +46,9 @@ def _amount_kb() -> InlineKeyboardMarkup:
 
 # method id → (button label, premoji icon)
 _METHODS = {
-    "crypto":   ("CryptoBot (от 10 ₽)", "money"),
-    "platega":  ("Карта / СБП",         "money_in"),
+    "crypto":   ("CryptoBot (от 10 ₽)",   "money"),
+    "stars":    ("Telegram Stars ⭐",      "star"),
+    "platega":  ("Карта / СБП",           "money_in"),
 }
 
 
@@ -58,7 +59,7 @@ async def _show_methods(msg: Message, amount: int) -> None:
         cfg = await api.topup_config()
     except ApiError:
         cfg = {}
-    enabled = [m for m in ("crypto", "platega") if (cfg.get(m) or {}).get("enabled")]
+    enabled = [m for m in ("crypto", "stars", "platega") if (cfg.get(m) or {}).get("enabled")]
     if not enabled:
         await msg.answer(
             f"{pe('cross')}  <b>Оплата временно недоступна</b>\n\n"
@@ -84,7 +85,7 @@ async def _start(target) -> None:
     msg = target if isinstance(target, Message) else target.message
     text = (
         f"{pe('money_in')}  <b>Пополнение баланса</b>\n{RULE}\n\n"
-        f"{pe('wallet')}  Выбери сумму — оплата картой/СБП/крипто.\n"
+        f"{pe('wallet')}  Выбери сумму — CryptoBot, Telegram Stars ⭐ или карта/СБП.\n"
         f"{pe('check')}  Баланс общий с сайтом: пополнишь здесь — будет и на сайте.\n\n"
         f"{pe('info')}  <i>Минимум — 10 ₽ (CryptoBot, без комиссии).</i>"
     )
@@ -145,7 +146,30 @@ async def cb_topup_go(cb: CallbackQuery):
         await cb.answer("Ошибка", show_alert=True)
         return
     await cb.answer()
+    if method == "stars":
+        await _create_stars(cb.message, cb.from_user.id, amount)
+        return
     await _create(cb.message, cb.from_user.id, amount, method)
+
+
+async def _create_stars(msg: Message, tg_id: int, amount: int) -> None:
+    """Stars top-up: create the pending row on the site, then send an XTR invoice
+    right here. Crediting happens in handlers/payments.py on successful_payment."""
+    await typing(msg)
+    try:
+        r = await api.topup_create(tg_id, amount, "stars")
+    except ApiError as e:
+        await msg.answer(f"{pe('cross')}  Не удалось создать счёт: <i>{esc(e)}</i>",
+                         reply_markup=back_to_menu_kb(), parse_mode="HTML")
+        return
+    tid = int(r.get("id") or 0)
+    stars = int(r.get("stars") or 0)
+    if tid <= 0 or stars <= 0:
+        await msg.answer(f"{pe('cross')}  Сервер не вернул счёт. Попробуй ещё раз.",
+                         reply_markup=back_to_menu_kb(), parse_mode="HTML")
+        return
+    from .payments import send_stars_invoice
+    await send_stars_invoice(msg.bot, msg.chat.id, tid, stars, amount)
 
 
 async def _create(msg: Message, tg_id: int, amount: int, method: str) -> None:

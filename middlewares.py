@@ -81,6 +81,10 @@ class LinkGate(BaseMiddleware):
 
         if isinstance(event, Message):
             tg_id = event.from_user.id if event.from_user else None
+            # Stars payment confirmations carry no text and must never be gated —
+            # the money already moved; we must credit it.
+            if getattr(event, "successful_payment", None):
+                return await handler(event, data)
             txt = (event.text or "").strip()
             cmd = txt.split()[0].split("@")[0].lower() if txt else ""
             if cmd in _EXEMPT_CMDS:
